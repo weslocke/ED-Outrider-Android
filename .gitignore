@@ -1,0 +1,31 @@
+# Gradle / Android build output
+.gradle/
+build/
+*/build/
+.kotlin/
+captures/
+*.apk
+*.aab
+
+# Machine-specific
+local.properties
+.idea/
+*.iml
+.DS_Store
+
+# Signing keys and their passwords: never in the repo
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# Generated previews (the SVG sources in design/ are kept)
+design/*-preview.png
+
+# The wake word's downloaded engine and model (./gradlew fetchVoice)
+app/voice/
+
+# Editors and Python tool caches
+.vscode/
+__pycache__/
+*.pyc

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drawn from design/launcher-icon.svg: keep the two in step. Everything sits inside the 66 dp safe circle. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- LCARS elbow -->
+    <path android:fillColor="#FF9933"
+        android:pathData="M26,44 A14,14 0 0 1 40,30 L64,30 L64,42 L46,42 A6,6 0 0 0 40,48 L40,63 L26,63 Z" />
+    <!-- cap on the top bar -->
+    <path android:fillColor="#CC99CC" android:pathData="M67,30 L74,30 A6,6 0 0 1 74,42 L67,42 Z" />
+    <!-- block under the side bar -->
+    <path android:fillColor="#9999FF" android:pathData="M26,66 L40,66 L40,69 A7,7 0 0 1 26,69 Z" />
+    <!-- ringed planet: back of the ring, the planet, then the front of the ring with a black gap -->
+    <group android:rotation="-24" android:pivotX="63" android:pivotY="62">
+        <path android:strokeColor="#FFCC99" android:strokeWidth="2.4" android:pathData="M47,62 A16,4.6 0 0 1 79,62" />
+    </group>
+    <path android:fillColor="#FFCC99" android:pathData="M54,62 A9,9 0 1 0 72,62 A9,9 0 1 0 54,62 Z" />
+    <group android:rotation="-24" android:pivotX="63" android:pivotY="62">
+        <path android:strokeColor="#000000" android:strokeWidth="5" android:pathData="M79,62 A16,4.6 0 0 1 47,62" />
+        <path android:strokeColor="#FFCC99" android:strokeWidth="2.4" android:pathData="M79,62 A16,4.6 0 0 1 47,62" />
+    </group>
+</vector>

@@ -1,0 +1,856 @@
+package io.github.weslocke.outrider
+
+import android.annotation.SuppressLint
+import android.app.DownloadManager
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.graphics.Color
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.Environment
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.util.Log
+import android.view.View
+import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
+import android.webkit.CookieManager
+import android.webkit.URLUtil
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.ComponentActivity
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.drawable.GradientDrawable
+import android.util.TypedValue
+import android.view.Gravity
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import kotlin.math.ceil
+
+/**
+ * One activity: Outrider's /tablet page in a WebView, with the app's own screens over it when there is no page
+ * to show (first-run settings, sign-in, no link, update needed) and a menu on Back.
+ *
+ * Flow: [connect] asks GET /api/version; the answer leads to an update screen, the sign-in screen or [showPage].
+ * The page's own errors (load failure, 401, a lost session reported over the bridge) come back to [connect].
+ */
+class MainActivity : ComponentActivity() {
+
+    private enum class State { SETUP, CONNECTING, NO_LINK, UPDATE, SIGN_IN, PAGE, MENU }
+
+    private lateinit var prefs: Prefs
+    private lateinit var root: FrameLayout
+    private lateinit var webHost: FrameLayout
+
+    private var state = State.CONNECTING
+    private var screen: Screen? = null
+
+    private var web: WebView? = null
+    private var webAddress: ServerAddress? = null
+    /** False until /tablet has loaded without a main-frame error since the last session change. */
+    private var pageLoaded = false
+
+    private var lastVersion: VersionInfo? = null
+
+    private val io: ExecutorService = Executors.newSingleThreadExecutor()
+    private val main = Handler(Looper.getMainLooper())
+    /** Bumped by every [connect]; a network answer for an older generation is dropped. */
+    private var generation = 0
+
+    // asking by voice: the wake word (or the Ask button) starts one spoken question, its progress in a small
+    // overlay over the page; while the wake word listens, a small indicator shows it
+    private lateinit var listener: Listener
+    private lateinit var wake: WakeWord
+    private lateinit var voiceOverlay: TextView
+    private lateinit var wakeIndicator: TextView
+    private val hideOverlay = Runnable { voiceOverlay.visibility = View.GONE }
+    /** True from the wake word or Ask until the answer is shown: the wake word waits meanwhile. */
+    private var asking = false
+    private var resumed = false
+    /** What to do once the microphone permission is answered. */
+    private var afterMic: (Boolean) -> Unit = {}
+    private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { afterMic(it) }
+    /** The model's word pieces and vocabulary, for turning the wake word into keywords; null if the model is missing. */
+    private val wakeModel: Pair<Bpe, Set<String>>? by lazy {
+        try {
+            val bpe = assets.open("kws/bpe.model").use { Bpe.load(it) }
+            val tokens = assets.open("kws/tokens.txt").bufferedReader().readLines().map { it.substringBefore(' ') }.toSet()
+            bpe to tokens
+        } catch (e: Exception) {
+            Log.e(TAG, "wake-word model missing", e)
+            null
+        }
+    }
+
+    private var retryIndex = 0
+    private var retryAt = 0L
+    private var noLinkReason = ""
+
+    /** versionName, e.g. "1.0.0" ("1.0.0-debug" for debug builds). Read from the package: no BuildConfig, so the
+     *  build needs no Java compiler (this PC has Java runtimes only). */
+    private val appVersion by lazy { packageManager.getPackageInfo(packageName, 0).versionName ?: "0" }
+    private val debuggable by lazy { applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0 }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        prefs = Prefs(this)
+
+        root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+        webHost = FrameLayout(this)
+        root.addView(webHost, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        setContentView(root)
+        listener = Listener(this, ::onListen)
+        wake = WakeWord(assets, ::onWake)
+        voiceOverlay = makeVoiceOverlay()
+        root.addView(voiceOverlay, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = dp(96) })
+        wakeIndicator = makeWakeIndicator()
+        root.addView(wakeIndicator, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.START).apply { leftMargin = dp(20); bottomMargin = dp(16) })
+
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        hideSystemBars()
+        // System bars stay hidden; the keyboard is the only inset, and the page or form shrinks above it.
+        ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+            v.setPadding(0, 0, 0, insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
+            insets
+        }
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() = onBack(this)
+        })
+
+        if (prefs.address == null) showSetup() else connect()
+        debugAsk(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        debugAsk(intent)
+    }
+
+    /**
+     * Debug builds only: `adb shell "am start -n <pkg>/io.github.weslocke.outrider.MainActivity --es debug_ask 'how much fuel'"`
+     * (the inner quotes keep the spaces: adb runs it through the tablet's shell)
+     * sends that text as if it had been heard, to test /api/ask without a voice. Release builds ignore it.
+     */
+    private fun debugAsk(intent: Intent?) {
+        val text = intent?.getStringExtra("debug_ask") ?: return
+        intent.removeExtra("debug_ask")
+        if (debuggable) main.postDelayed({ ask(text) }, 1500)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        resumed = true
+        voiceIdle()
+        hideSystemBars()
+        web?.onResume()
+        web?.resumeTimers()
+        if (state == State.NO_LINK) connect(quiet = true)
+    }
+
+    override fun onPause() {
+        resumed = false
+        stopWake()
+        if (listener.active) {
+            listener.cancel()
+            voiceOverlay.visibility = View.GONE
+        }
+        asking = false
+        // The page's long poll stops while the app is away; it resumes and rebaselines on its own.
+        web?.onPause()
+        web?.pauseTimers()
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        listener.cancel()
+        wake.release()
+        main.removeCallbacksAndMessages(null)
+        io.shutdownNow()
+        web?.destroy()
+        web = null
+        super.onDestroy()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) hideSystemBars()
+    }
+
+    private fun hideSystemBars() {
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
+    private fun onBack(callback: OnBackPressedCallback) {
+        when (state) {
+            State.PAGE -> showMenu()
+            State.MENU -> backToPage()
+            State.SETUP -> if (prefs.address != null) connect() else leave(callback)
+            else -> leave(callback)
+        }
+    }
+
+    private fun leave(callback: OnBackPressedCallback) {
+        callback.isEnabled = false
+        onBackPressedDispatcher.onBackPressed()
+        callback.isEnabled = true
+    }
+
+    // ---- connecting ---------------------------------------------------------------------------------------
+
+    /** Asks /api/version and goes wherever the answer leads. [quiet] keeps the current screen while it asks. */
+    private fun connect(quiet: Boolean = false) {
+        val address = prefs.address ?: return showSetup()
+        val gen = ++generation
+        main.removeCallbacks(retryTick)
+        if (state == State.NO_LINK) screen?.setBody(noLinkBody(address, "Trying now…"))
+        else if (!quiet) show(State.CONNECTING, Screen.Spec(
+            title = "Connecting",
+            body = "Looking for Outrider at ${address.display}…",
+            buttons = listOf(Screen.Button("Settings", primary = false) { showSetup() }),
+        ))
+        val api = OutriderApi(address, prefs.token, appVersion)
+        io.execute {
+            val result = api.version()
+            main.post { if (gen == generation) onVersion(address, result) }
+        }
+    }
+
+    private fun onVersion(address: ServerAddress, result: OutriderApi.Result<VersionInfo>) {
+        when (result) {
+            is OutriderApi.Result.Ok -> {
+                retryIndex = 0
+                val info = result.value
+                lastVersion = info
+                when (val verdict = Versions.check(info, appVersion)) {
+                    is Versions.Verdict.UpdateApp -> showUpdate(app = true, verdict.reason)
+                    is Versions.Verdict.UpdateOutrider -> showUpdate(app = false, verdict.reason)
+                    Versions.Verdict.Ok ->
+                        if (info.password && !info.signedIn) {
+                            val had = prefs.token != null
+                            forgetSession()
+                            showSignIn(if (had) "This tablet was signed out: the password changed, or it was signed out on the PC." else null)
+                        } else showPage()
+                }
+            }
+            is OutriderApi.Result.Failed -> when (result.error.status) {
+                404 -> showUpdate(app = false, "Outrider at ${address.display} has no tablet support yet (no /api/version).")
+                426 -> showUpdate(app = true, result.error.message)
+                else -> showNoLink(result.error.message)
+            }
+            is OutriderApi.Result.Unreachable -> showNoLink(result.reason)
+            is OutriderApi.Result.NotOutrider -> showNoLink("Something answered at ${address.display}, but it isn't Outrider.")
+        }
+    }
+
+    // ---- the page -------------------------------------------------------------------------------------------
+
+    private fun showPage(reload: Boolean = false) {
+        val address = prefs.address ?: return showSetup()
+        if (web == null || webAddress != address) createWebView(address)
+        hideScreen()
+        state = State.PAGE
+        if (reload || !pageLoaded) {
+            pageLoaded = true
+            web?.loadUrl(address.url("/tablet"))
+        }
+        askMicOnce()
+        voiceIdle()
+    }
+
+    private fun backToPage() {
+        if (web != null && pageLoaded) {
+            hideScreen()
+            state = State.PAGE
+        } else connect()
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun createWebView(address: ServerAddress) {
+        destroyWebView()
+        WebView.setWebContentsDebuggingEnabled(debuggable) // chrome://inspect on the PC
+        val w = WebView(this)
+        w.setBackgroundColor(Color.BLACK)
+        w.overScrollMode = View.OVER_SCROLL_NEVER
+        w.settings.apply {
+            javaScriptEnabled = true
+            domStorageEnabled = true // the page keeps per-device settings in localStorage
+            textZoom = 100
+            setSupportZoom(false)
+            builtInZoomControls = false
+            displayZoomControls = false
+            allowFileAccess = false
+            allowContentAccess = false
+            setSupportMultipleWindows(false)
+            javaScriptCanOpenWindowsAutomatically = false
+            userAgentString = "$userAgentString OutriderApp/$appVersion"
+        }
+        CookieManager.getInstance().setAcceptCookie(true)
+        installBridge(w, address)
+        w.webViewClient = PageClient(address)
+        w.webChromeClient = WebChromeClient() // JS alert/confirm dialogs
+        w.setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
+            download(address, url, userAgent, contentDisposition, mimeType)
+        }
+        webHost.addView(w, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        web = w
+        webAddress = address
+        pageLoaded = false
+    }
+
+    private fun destroyWebView() {
+        web?.let {
+            webHost.removeView(it)
+            it.destroy()
+        }
+        web = null
+        webAddress = null
+        pageLoaded = false
+    }
+
+    private fun installBridge(w: WebView, address: ServerAddress) {
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT) ||
+            !WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)
+        ) {
+            Log.w(TAG, "WebView too old for the bridge; the page runs without window.OutriderApp")
+            return
+        }
+        val rules = setOf(address.origin)
+        WebViewCompat.addWebMessageListener(w, Bridge.NATIVE_OBJECT, rules) { _, message, sourceOrigin, isMainFrame, _ ->
+            if (isMainFrame && address.isSameOrigin(sourceOrigin.toString())) onBridge(Bridge.parse(message.data))
+        }
+        WebViewCompat.addDocumentStartJavaScript(w, Bridge.script(appVersion), rules)
+    }
+
+    private fun onBridge(message: Bridge.Message?) {
+        when (message) {
+            is Bridge.Message.Haptic -> vibrate(message.ms)
+            Bridge.Message.SignInRequired -> {
+                // The page keeps polling under the sign-in screen and asks again on every 401: rebuilding the
+                // screen each time would wipe a half-typed password.
+                if (state == State.SIGN_IN) return
+                forgetSession()
+                showSignIn("Outrider asked this tablet to sign in again.")
+            }
+            is Bridge.Message.SetTheme -> prefs.theme = message.name
+            Bridge.Message.Listen -> if (state == State.PAGE) startAsk()
+            null -> {}
+        }
+    }
+
+    private inner class PageClient(private val address: ServerAddress) : WebViewClient() {
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            val url = request.url
+            if (address.isSameOrigin(url.toString())) return false
+            // Anything else leaves the app: web links open in the browser, other schemes are dropped.
+            if (url.scheme == "http" || url.scheme == "https") try {
+                startActivity(Intent(Intent.ACTION_VIEW, url))
+            } catch (e: ActivityNotFoundException) {
+                toast("No browser to open $url")
+            }
+            return true
+        }
+
+        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+            if (!request.isForMainFrame || view !== web) return
+            pageLoaded = false
+            showNoLink(when (error.errorCode) {
+                ERROR_CONNECT -> OutriderApi.reason(java.net.ConnectException())
+                ERROR_TIMEOUT -> OutriderApi.reason(java.net.SocketTimeoutException())
+                ERROR_HOST_LOOKUP -> OutriderApi.reason(java.net.UnknownHostException())
+                else -> "The page didn't load (${error.description})."
+            })
+        }
+
+        override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+            if (!request.isForMainFrame || view !== web) return
+            pageLoaded = false
+            when (response.statusCode) {
+                401 -> connect() // the session is gone: /api/version says so and sign-in follows
+                404 -> showUpdate(app = false, "Outrider at ${address.display} has no tablet page (/tablet) yet.")
+                else -> showNoLink("Outrider answered HTTP ${response.statusCode} for the tablet page.")
+            }
+        }
+
+        override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
+            if (view === web) {
+                destroyWebView()
+                if (state == State.PAGE) showPage()
+            } else view.destroy()
+            return true
+        }
+    }
+
+    private fun download(address: ServerAddress, url: String, userAgent: String, contentDisposition: String?, mimeType: String?) {
+        if (!address.isSameOrigin(url)) {
+            toast("This file can't be saved from the app yet")
+            return
+        }
+        val name = URLUtil.guessFileName(url, contentDisposition, mimeType)
+        try {
+            val request = DownloadManager.Request(Uri.parse(url))
+                .setMimeType(mimeType)
+                .addRequestHeader("User-Agent", userAgent)
+                .setTitle(name)
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            CookieManager.getInstance().getCookie(url)?.let { request.addRequestHeader("Cookie", it) }
+            prefs.token?.let { request.addRequestHeader("Authorization", "Bearer $it") }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
+            else request.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, name)
+            getSystemService(DownloadManager::class.java).enqueue(request)
+            toast("Saving $name to Downloads")
+        } catch (e: RuntimeException) {
+            toast("Couldn't save $name: ${e.message}")
+        }
+    }
+
+    private fun vibrate(ms: Int) {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            getSystemService(VibratorManager::class.java)?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            getSystemService(Vibrator::class.java)
+        }
+        if (vibrator?.hasVibrator() != true) return
+        vibrator.vibrate(VibrationEffect.createOneShot(ms.toLong(), VibrationEffect.DEFAULT_AMPLITUDE))
+    }
+
+    // ---- session --------------------------------------------------------------------------------------------
+
+    /** Drops the token and the WebView's session cookie (the WebView only ever holds Outrider's cookies). */
+    private fun forgetSession() {
+        prefs.token = null
+        CookieManager.getInstance().removeAllCookies(null)
+        CookieManager.getInstance().flush()
+        pageLoaded = false
+    }
+
+    private fun signIn(address: ServerAddress, password: String) {
+        if (password.isEmpty()) {
+            screen?.setError("Enter the password")
+            return
+        }
+        screen?.setError(null)
+        screen?.setBody("Signing in…")
+        val gen = ++generation
+        val api = OutriderApi(address, null, appVersion)
+        io.execute {
+            val result = api.signIn(password)
+            main.post { if (gen == generation) onSignIn(address, result) }
+        }
+    }
+
+    private fun onSignIn(address: ServerAddress, result: OutriderApi.Result<String>) {
+        screen?.setBody(signInBody(address))
+        when (result) {
+            is OutriderApi.Result.Ok -> {
+                prefs.token = result.value
+                val cookies = CookieManager.getInstance()
+                result.setCookies.forEach { cookies.setCookie(address.origin + "/", it) }
+                cookies.flush()
+                pageLoaded = false
+                connect()
+            }
+            is OutriderApi.Result.Failed -> when (result.error.code) {
+                "bad_password" -> screen?.setError("Wrong password")
+                "rate_limited" -> screen?.setError("Too many tries. Wait ${result.error.retryAfter ?: 60} s and try again.")
+                "app_too_old" -> showUpdate(app = true, result.error.message)
+                else -> screen?.setError(result.error.message)
+            }
+            is OutriderApi.Result.Unreachable -> screen?.setError("Outrider isn't answering: ${result.reason}")
+            is OutriderApi.Result.NotOutrider -> screen?.setError("Something answered, but it isn't Outrider")
+        }
+    }
+
+    private fun signOut() {
+        val address = prefs.address ?: return
+        val api = OutriderApi(address, prefs.token, appVersion)
+        io.execute { api.signOut() } // best effort: the token is forgotten here either way
+        forgetSession()
+        showSignIn("Signed out.")
+    }
+
+    // ---- the app's own screens ------------------------------------------------------------------------------
+
+    private fun show(newState: State, spec: Screen.Spec): Screen {
+        hideKeyboard()
+        screen?.let { root.removeView(it.view) }
+        main.removeCallbacks(retryTick)
+        val s = Screen(this, AppTheme.named(prefs.theme), spec)
+        root.addView(s.view, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        screen = s
+        state = newState
+        voiceIdle()   // the wake word listens over the page only
+        return s
+    }
+
+    private fun hideScreen() {
+        hideKeyboard()
+        main.removeCallbacks(retryTick)
+        screen?.let { root.removeView(it.view) }
+        screen = null
+        main.post { voiceIdle() }   // after the caller has set the new state
+    }
+
+    private fun showSetup() {
+        generation++ // drop any answer still on its way
+        val current = prefs.address
+        lateinit var s: Screen
+        val save = save@{
+            when (val parsed = ServerAddress.parse(s.field?.text?.toString() ?: "")) {
+                is ServerAddress.Parsed.Invalid -> s.setError(parsed.reason)
+                is ServerAddress.Parsed.Ok -> {
+                    if (parsed.address != current) {
+                        // a session belongs to one Outrider
+                        forgetSession()
+                        destroyWebView()
+                        prefs.address = parsed.address
+                    }
+                    connect()
+                }
+            }
+        }
+        val buttons = mutableListOf(Screen.Button("Connect") { save() })
+        if (current != null) buttons += Screen.Button("Cancel", primary = false) { connect() }
+        s = show(State.SETUP, Screen.Spec(
+            title = "PC address",
+            body = "The address of the PC running Outrider on your network, e.g. 192.168.1.20. " +
+                "Outrider uses port ${ServerAddress.DEFAULT_PORT}; for another port add it: 192.168.1.20:8100.",
+            field = Screen.Field(hint = "192.168.1.20", text = current?.display ?: "", onDone = { save() }),
+            buttons = buttons,
+            footer = "ED Outrider for Android $appVersion",
+        ))
+        focusField(s)
+    }
+
+    private fun signInBody(address: ServerAddress) =
+        "Outrider at ${address.display} asks for a password: the one set as [server] password in ed_outrider.toml on the PC. " +
+            "This tablet stays signed in until that password changes."
+
+    private fun showSignIn(note: String?) {
+        val address = prefs.address ?: return showSetup()
+        generation++
+        lateinit var s: Screen
+        val submit = { signIn(address, s.field?.text?.toString() ?: "") }
+        s = show(State.SIGN_IN, Screen.Spec(
+            title = "Sign in",
+            body = signInBody(address),
+            field = Screen.Field(hint = "Password", password = true, onDone = { submit() }),
+            error = note,
+            buttons = listOf(
+                Screen.Button("Sign in") { submit() },
+                Screen.Button("Settings", primary = false) { showSetup() },
+            ),
+            footer = footer(),
+        ))
+        focusField(s)
+    }
+
+    private fun showUpdate(app: Boolean, reason: String) {
+        show(State.UPDATE, Screen.Spec(
+            title = if (app) "Update the app" else "Update Outrider",
+            body = reason + "\n\n" + if (app) "Install the newest ED Outrider APK on this tablet." else "Update Outrider on the PC and restart it.",
+            buttons = listOf(
+                Screen.Button("Try again") { connect() },
+                Screen.Button("Settings", primary = false) { showSetup() },
+            ),
+            footer = footer(),
+        ))
+    }
+
+    private fun noLinkBody(address: ServerAddress, next: String) =
+        "Outrider isn't answering at ${address.display}.\n$noLinkReason\n\n" +
+            "Check that Outrider is running on the PC, that this tablet is on the same network, and that Outrider " +
+            "listens on the network (host 0.0.0.0), not only on 127.0.0.1.\n\n$next"
+
+    private fun showNoLink(reason: String) {
+        val address = prefs.address ?: return showSetup()
+        noLinkReason = reason
+        val delay = RETRY_SECONDS[minOf(retryIndex, RETRY_SECONDS.size - 1)]
+        retryIndex++
+        retryAt = SystemClock.uptimeMillis() + delay * 1000L
+        if (state != State.NO_LINK || screen == null) show(State.NO_LINK, Screen.Spec(
+            title = "No link",
+            body = "",
+            buttons = listOf(
+                Screen.Button("Retry now") { connect() },
+                Screen.Button("Settings", primary = false) { showSetup() },
+            ),
+            footer = footer(),
+        ))
+        main.removeCallbacks(retryTick)
+        retryTick.run()
+    }
+
+    private val retryTick = object : Runnable {
+        override fun run() {
+            val address = prefs.address ?: return
+            val left = ceil((retryAt - SystemClock.uptimeMillis()) / 1000.0).toInt()
+            if (left <= 0) {
+                connect(quiet = true)
+                return
+            }
+            screen?.setBody(noLinkBody(address, "Trying again in $left s."))
+            main.postDelayed(this, 250)
+        }
+    }
+
+    private fun showMenu() {
+        val buttons = mutableListOf(
+            Screen.Button("Back to Outrider") { backToPage() },
+            Screen.Button("Reload", primary = false) {
+                hideScreen()
+                state = State.PAGE
+                web?.reload()
+            },
+            Screen.Button("Settings", primary = false) { showSetup() },
+        )
+        buttons += Screen.Button("Ask", primary = false) {
+            backToPage()
+            if (state == State.PAGE) startAsk()
+        }
+        buttons += Screen.Button("Voice", primary = false) { showVoice() }
+        if (lastVersion?.password == true && prefs.token != null) buttons += Screen.Button("Sign out", primary = false) { signOut() }
+        show(State.MENU, Screen.Spec(
+            title = "ED Outrider",
+            body = "Connected to ${prefs.address?.display}.",
+            buttons = buttons,
+            footer = footer(),
+        ))
+    }
+
+    private fun footer(): String {
+        val v = lastVersion
+        val outrider = if (v != null) "Outrider ${v.outrider} (app contract ${v.api})" else "Outrider not reached yet"
+        val dm = resources.displayMetrics
+        val viewport = "screen ${(dm.widthPixels / dm.density).toInt()} × ${(dm.heightPixels / dm.density).toInt()} dp"
+        return "$outrider · app $appVersion · $viewport"
+    }
+
+    private fun focusField(s: Screen) {
+        val f = s.field ?: return
+        f.requestFocus()
+        f.setSelection(f.text.length)
+        f.post { WindowInsetsControllerCompat(window, f).show(WindowInsetsCompat.Type.ime()) }
+    }
+
+    private fun hideKeyboard() {
+        val focus = currentFocus ?: return
+        getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(focus.windowToken, 0)
+    }
+
+    private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_LONG).show()
+
+    // ---- tap-to-ask --------------------------------------------------------------------------------------------
+
+    private fun micGranted() =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+    private fun requestMic(then: (Boolean) -> Unit) {
+        afterMic = then
+        micPermission.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    /** The first time the page shows with the wake word on, ask for the microphone (once; Voice can ask again). */
+    private fun askMicOnce() {
+        if (prefs.wakeEnabled && !micGranted() && !prefs.micAsked) {
+            prefs.micAsked = true
+            requestMic { voiceIdle() }
+        }
+    }
+
+    /** Listens for one question (asking for the microphone the first time), then sends it to /api/ask. */
+    private fun startAsk() {
+        if (!micGranted()) {
+            requestMic { granted ->
+                if (granted) startAsk() else showOverlay("The microphone isn't allowed, so the tablet can't listen", alert = true)
+            }
+            return
+        }
+        if (listener.active) {   // a second tap cancels
+            listener.cancel()
+            voiceOverlay.visibility = View.GONE
+            asking = false
+            voiceIdle()
+            return
+        }
+        stopWake()   // the recognizer needs the microphone
+        asking = true
+        showOverlay("LISTENING…", hold = true)
+        listener.start()
+    }
+
+    private fun onWake() {
+        if (state != State.PAGE || asking) return voiceIdle()
+        startAsk()
+    }
+
+    private fun onListen(event: Listener.Event) {
+        when (event) {
+            Listener.Event.Ready -> showOverlay("LISTENING…", hold = true)
+            is Listener.Event.Partial -> showOverlay("“${event.text}”", hold = true)
+            is Listener.Event.Heard -> ask(event.text)
+            is Listener.Event.Failed -> {
+                showOverlay(event.reason, alert = true)
+                asking = false
+                voiceIdle()
+            }
+        }
+    }
+
+    /** Starts or stops the wake word to match the moment: on over the page, while on screen, not mid-question. */
+    private fun voiceIdle() {
+        val model = wakeModel
+        val want = resumed && state == State.PAGE && prefs.wakeEnabled && !asking && !listener.active && micGranted() && model != null
+        if (want && !wake.active) {
+            wake.start(WakePhrases.keywords(model!!.first, prefs.wakeWord, prefs.wakeSensitivity))
+            wakeIndicator.text = "◉ " + Bpe.clean(prefs.wakeWord)
+            wakeIndicator.setTextColor(AppTheme.named(prefs.theme).accent)
+            wakeIndicator.visibility = View.VISIBLE
+        } else if (!want) stopWake()
+    }
+
+    private fun stopWake() {
+        if (wake.active) wake.stop()
+        wakeIndicator.visibility = View.GONE
+    }
+
+    /** The Voice screen: the wake word on or off, the word itself, how readily it triggers. */
+    private fun showVoice(
+        enabled: Boolean = prefs.wakeEnabled,
+        sensitivity: WakePhrases.Sensitivity = prefs.wakeSensitivity,
+        word: String = prefs.wakeWord,
+    ) {
+        lateinit var s: Screen
+        val typed = { s.field?.text?.toString()?.trim() ?: word }
+        val save = {
+            val model = wakeModel
+            val problem = if (model == null) "The wake-word model is missing from this build" else WakePhrases.problem(model.first, model.second, typed())
+            if (problem != null && enabled) s.setError(problem)
+            else {
+                if (problem == null) prefs.wakeWord = typed()
+                prefs.wakeEnabled = enabled
+                prefs.wakeSensitivity = sensitivity
+                stopWake()   // restart with the new phrases
+                if (enabled && !micGranted()) requestMic { backToPage() } else backToPage()
+            }
+        }
+        val mic = if (micGranted()) "" else "\n\nThe microphone isn't allowed yet: Save asks for it."
+        s = show(State.SETUP, Screen.Spec(
+            title = "Voice",
+            body = "Say OK, Hey or Hello and the wake word, wait for LISTENING, then ask: a status report, fuel, " +
+                "unsold, the next jump, what's left here, the nearest unvisited system, hush or unhush. Outrider " +
+                "answers out loud on the PC.\n\nThe tablet listens for the wake word only while ED Outrider is on " +
+                "screen, on the tablet itself; only the question you ask after it goes on to be understood." + mic,
+            field = Screen.Field(hint = WakePhrases.DEFAULT_WORD, text = word, onDone = { save() }),
+            buttons = listOf(
+                Screen.Button("Save") { save() },
+                Screen.Button("Wake word: " + if (enabled) "on" else "off", primary = false) { showVoice(!enabled, sensitivity, typed()) },
+                Screen.Button("Sensitivity: " + sensitivity.label, primary = false) { showVoice(enabled, sensitivity.next(), typed()) },
+                Screen.Button("Cancel", primary = false) { backToPage() },
+            ),
+            footer = "Higher sensitivity hears you through more game noise, and mistakes other words for it more often.",
+        ))
+    }
+
+    private fun ask(text: String) {
+        val address = prefs.address ?: return
+        showOverlay("“$text” · asking Outrider…", hold = true)
+        val api = OutriderApi(address, prefs.token, appVersion)
+        io.execute {
+            val result = api.ask(text)
+            main.post {
+                asking = false
+                main.postDelayed({ voiceIdle() }, 1500)   // a moment for the PC to start answering aloud
+                when (result) {
+                    is OutriderApi.Result.Ok -> showOverlay(Speech.answerLine(result.value), long = true)
+                    is OutriderApi.Result.Failed -> when (result.error.status) {
+                        404 -> showOverlay("This Outrider can't answer questions yet: update Outrider", alert = true)
+                        401 -> {
+                            forgetSession()
+                            showSignIn("Outrider asked this tablet to sign in again.")
+                        }
+                        else -> showOverlay(result.error.message, alert = true)
+                    }
+                    is OutriderApi.Result.Unreachable -> showOverlay("Outrider isn't answering: ${result.reason}", alert = true)
+                    is OutriderApi.Result.NotOutrider -> showOverlay("Something answered, but it isn't Outrider", alert = true)
+                }
+            }
+        }
+    }
+
+    /** The overlay: [hold] stays until the next state; otherwise it hides after a few seconds. */
+    private fun showOverlay(text: String, hold: Boolean = false, alert: Boolean = false, long: Boolean = false) {
+        val theme = AppTheme.named(prefs.theme)
+        voiceOverlay.text = text
+        voiceOverlay.setTextColor(if (alert) theme.alert else theme.onFill)
+        (voiceOverlay.background as GradientDrawable).apply {
+            setColor(if (alert) theme.background else theme.primary)
+            setStroke(dp(2), if (alert) theme.alert else theme.primary)
+        }
+        voiceOverlay.visibility = View.VISIBLE
+        voiceOverlay.bringToFront()
+        main.removeCallbacks(hideOverlay)
+        if (!hold) main.postDelayed(hideOverlay, if (long) 9000L else 4500L)
+    }
+
+    private fun makeWakeIndicator() = TextView(this).apply {
+        visibility = View.GONE
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+        typeface = android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD)
+        setPadding(dp(10), dp(4), dp(10), dp(4))
+        background = GradientDrawable().apply { setColor(0xB0000000.toInt()); cornerRadius = dp(12).toFloat() }
+        contentDescription = "Listening for the wake word"
+        setOnClickListener { showVoice() }
+    }
+
+    private fun makeVoiceOverlay() = TextView(this).apply {
+        visibility = View.GONE
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
+        typeface = android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD)
+        setPadding(dp(28), dp(14), dp(28), dp(14))
+        maxWidth = dp(900)
+        background = GradientDrawable().apply { cornerRadius = dp(40).toFloat() }
+        // a tap while listening cancels; otherwise it just closes the overlay
+        setOnClickListener {
+            if (listener.active) listener.cancel()
+            visibility = View.GONE
+        }
+    }
+
+    private fun dp(v: Int) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), resources.displayMetrics).toInt()
+
+    private companion object {
+        const val TAG = "Outrider"
+        val RETRY_SECONDS = intArrayOf(2, 4, 8, 15)
+    }
+}
