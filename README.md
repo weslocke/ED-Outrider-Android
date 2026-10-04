@@ -73,15 +73,16 @@ the tablet sleeps, and listens for your voice.
 - [ED Outrider](https://github.com/weslocke/ED-Outrider), a version with the tablet layout, running on a computer on
   your network (the gaming PC, or another machine such as a home server) and listening on the network:
   `[server] host = "0.0.0.0"` in `ed_outrider.toml` (not only `127.0.0.1`).
-- An Android tablet with Android 8 or newer on the same network. It's built for an 11" landscape screen (tested on a
-  Galaxy Tab A11+).
+- An Android tablet with Android 8 or newer on the same network, with an ARM processor (nearly all phones and tablets;
+  Intel/x86 devices such as emulators and some Chromebooks aren't supported). It's built for an 11" landscape screen
+  (tested on a Galaxy Tab A11+).
 
 **Install.** The app is sideloaded, not from an app store. Download `ED-Outrider-<version>.apk` from the
 [releases](https://github.com/weslocke/ED-Outrider-Android/releases) and open it on the tablet (allow installing from
 that source when Android asks), or from a PC with the tablet on USB:
 
 ```bash
-adb install -r ED-Outrider-1.0.0.apk
+adb install -r ED-Outrider-1.1.0.apk
 ```
 
 **First start.** Enter the address of the computer running Outrider, e.g. `192.168.1.20` (add `:port` if Outrider doesn't use 8025). If Outrider
@@ -137,15 +138,20 @@ SHA-256 d7:e6:1a:4d:45:fb:ba:27:7e:7e:b1:ca:e6:b6:26:3d:ed:82:09:74:ce:94:65:a6:
 ## Building
 
 You need the Android SDK (platform 36), pointed to by `ANDROID_HOME` or a `local.properties` file
-(`sdk.dir=/path/to/Android/Sdk`). Nothing else: the Gradle wrapper fetches Gradle, and a JDK 21 into
-`~/.gradle/jdks` if the PC has none (a Java runtime alone can't compile). The first build also downloads the wake
+(`sdk.dir=/path/to/Android/Sdk`), and a Java runtime (17 or newer) on the `PATH` to start the Gradle wrapper. Nothing
+else: the wrapper fetches Gradle, and a JDK 21 into `~/.gradle/jdks` if the PC has none (a Java runtime alone can't
+compile). The first build also downloads the wake
 word's engine and model into `app/voice/` (about 55 MB, checked against pinned SHA-256s; `./gradlew fetchVoice`).
 
 ```bash
 ./gradlew testDebugUnitTest      # unit tests
-./gradlew assembleDebug          # app/build/outputs/apk/debug/ED-Outrider-<version>-debug.apk
-./gradlew assembleRelease        # signed if a signing key is configured (below), unsigned otherwise
+./gradlew assembleDebug          # app/build/dist/ED-Outrider-<version>-debug.apk
+./gradlew assembleRelease        # app/build/dist/ED-Outrider-<version>.apk, signed with the release key (below)
+./gradlew lint                   # also part of a release build: a new release-blocking problem stops it
 ```
+
+A release build without the signing key stops with an error rather than producing an unsigned APK under the signed
+one's name. `./gradlew assembleRelease -PallowUnsigned` builds `ED-Outrider-<version>-unsigned.apk` on purpose.
 
 The debug build installs beside the release build (its package ends in `.debug`), uses the SDK's debug key, and lets
 `chrome://inspect` on the PC inspect the page.
@@ -156,8 +162,10 @@ The debug build installs beside the release build (its package ends in `.debug`)
 The key is never in the repository. The build reads a properties file, `~/.android/outrider-release.properties`
 (or the path in `OUTRIDER_SIGNING`):
 
+`storeFile` may be absolute, start with `~/`, or be relative to the properties file's folder.
+
 ```properties
-storeFile=/home/you/.android/outrider-release.jks
+storeFile=outrider-release.jks
 storePassword=...
 keyAlias=outrider
 keyPassword=...
@@ -206,7 +214,7 @@ browser. The bridge exists only on the configured Outrider's pages.
 | | |
 |---|---|
 | `bridgeVersion` | `1` |
-| `appVersion()` | e.g. `"1.0.0"` |
+| `appVersion()` | e.g. `"1.1.0"` |
 | `haptic(ms)` | a short vibration, up to 100 ms (nothing on tablets without a motor) |
 | `signInRequired()` | the session is gone: the app signs in again and reloads the page |
 | `setTheme(name)` | `"lcars"`, `"elite"`, `"babylon5"`, `"narn"`, `"sith"`, `"alliance"` or `"dark"`, so the app's own screens match the page |

@@ -106,11 +106,17 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_MIC_ASKED, false)
         set(value) = sp.edit { putBoolean(KEY_MIC_ASKED, value) }
 
+    /** Android 8-9: storage has been asked for once, on the first export (a refusal saves to the app's folder). */
+    var storageAsked: Boolean
+        get() = sp.getBoolean(KEY_STORAGE_ASKED, false)
+        set(value) = sp.edit { putBoolean(KEY_STORAGE_ASKED, value) }
+
     private companion object {
         const val KEY_WAKE_ON = "wake_on"
         const val KEY_WAKE_WORD = "wake_word"
         const val KEY_WAKE_SENS = "wake_sensitivity"
         const val KEY_MIC_ASKED = "mic_asked"
+        const val KEY_STORAGE_ASKED = "storage_asked"
         const val KEY_WAKE_TONE = "wake_tone"
         const val KEY_SPEAK_HERE = "speak_here"
         const val KEY_MEDIA_BUTTON = "media_button"

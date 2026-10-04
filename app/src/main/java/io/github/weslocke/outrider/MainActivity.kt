@@ -113,6 +113,9 @@ class MainActivity : ComponentActivity() {
     /** What to do once the microphone permission is answered. */
     private var afterMic: (Boolean) -> Unit = {}
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { afterMic(it) }
+    /** Android 8-9: the export waiting for the storage permission's answer. */
+    private var afterStorage: (Boolean) -> Unit = {}
+    private val storagePermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { afterStorage(it) }
     /** The model's word pieces and vocabulary, for turning the wake word into keywords; null if the model is missing. */
     private val wakeModel: Pair<Bpe, Set<String>>? by lazy {
         try {
@@ -545,6 +548,21 @@ class MainActivity : ComponentActivity() {
             return
         }
         val name = URLUtil.guessFileName(url, contentDisposition, mimeType)
+        // Android 8-9 only writes to the shared Downloads folder with the storage permission: asked for on the
+        // first export; without it the file goes to the app's own folder, and the toast says where that is
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q && !storageGranted() && !prefs.storageAsked) {
+            prefs.storageAsked = true
+            afterStorage = { enqueueDownload(url, userAgent, mimeType, name, shared = it) }
+            storagePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            return
+        }
+        enqueueDownload(url, userAgent, mimeType, name, shared = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q || storageGranted())
+    }
+
+    private fun storageGranted() =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+
+    private fun enqueueDownload(url: String, userAgent: String, mimeType: String?, name: String, shared: Boolean) {
         try {
             val request = DownloadManager.Request(Uri.parse(url))
                 .setMimeType(mimeType)
@@ -553,10 +571,10 @@ class MainActivity : ComponentActivity() {
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             CookieManager.getInstance().getCookie(url)?.let { request.addRequestHeader("Cookie", it) }
             prefs.token?.let { request.addRequestHeader("Authorization", "Bearer $it") }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
+            if (shared) request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name)
             else request.setDestinationInExternalFilesDir(this, Environment.DIRECTORY_DOWNLOADS, name)
             getSystemService(DownloadManager::class.java).enqueue(request)
-            toast("Saving $name to Downloads")
+            toast(if (shared) "Saving $name to Downloads" else "Saving $name to Android/data/$packageName/files/Download")
         } catch (e: RuntimeException) {
             toast("Couldn't save $name: ${e.message}")
         }

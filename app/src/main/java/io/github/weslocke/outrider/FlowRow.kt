@@ -11,6 +11,9 @@ import kotlin.math.max
  */
 class FlowRow(context: Context, private val hGap: Int, private val vGap: Int) : ViewGroup(context) {
 
+    /** For Android's layout tools only: the app builds its rows in code. */
+    constructor(context: Context) : this(context, 0, 0)
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val maxWidth = MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight
         val unbounded = MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.UNSPECIFIED
