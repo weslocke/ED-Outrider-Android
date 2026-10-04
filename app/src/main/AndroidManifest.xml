@@ -4,7 +4,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Short haptic on the page's game buttons; devices without a motor simply ignore it. -->
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- Tap-to-ask: one spoken question at a time, asked for on first use. -->
+    <!-- Voice: asked for when the page first shows (the wake word is on by default). While the wake word is on and
+         the app is on screen, the microphone is read continuously and checked on the tablet for "OK Vespa"; nothing
+         is recorded or sent. A question after the wake word (or Ask) goes to Android's speech recognizer. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Android 8-9 only: exports saved to the shared Downloads folder (asked for on the first export). Later
          versions save there without any permission. -->

@@ -870,7 +870,7 @@ class MainActivity : ComponentActivity() {
 
     private fun toast(text: String) = Toast.makeText(this, text, Toast.LENGTH_LONG).show()
 
-    // ---- tap-to-ask --------------------------------------------------------------------------------------------
+    // ---- voice: the microphone, the wake word, Ask, answers -------------------------------------------------
 
     private fun micGranted() =
         ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED

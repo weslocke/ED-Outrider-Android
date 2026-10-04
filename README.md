@@ -42,7 +42,7 @@ the tablet sleeps, and listens for your voice.
 |---|---|
 | 🖥️ **Cockpit display** | Outrider's tablet layout full screen, landscape, screen kept on: Now, Nearby, Here, Samples, Bookmarks, Search, Map, Highway, History, Log, Materials and My firsts. |
 | 🕹️ **Ship controls** | A column of game buttons (landing gear, cargo scoop, lights, silent running, ...) that press your own key bindings in the game, lit from the game's own status. Changes with the vehicle: ship, SRV, fighter, on foot. *(Needs Outrider on the gaming PC, on Linux; an Outrider in server mode shows no game buttons.)* |
-| 🎙️ **"Hey Vespa"** | Say *"Hey / OK / Hello Vespa"*, then ask: *status report*, *fuel*, *unsold*, *next jump*, *what's left here*, *nearest unvisited*, *hush*. Outrider answers out loud in its own voice. The wake word is yours to change. |
+| 🎙️ **"Hey Vespa"** | Say *"Hey / OK / Hello Vespa"*, then ask: *status report*, *fuel*, *unsold*, *next jump*, *what's left here*, *nearest unvisited*, *hush*. Outrider answers out loud in its own voice (or the tablet reads it, when Outrider can't). The wake word is yours to change. |
 | 🎨 **Themes** | LCARS, Elite (cockpit HUD), Babylon 5 (Earthforce and Narn), Star Wars (Sith and Alliance) and a modern Dark mode, picked in the page's settings; the app's own screens follow. |
 | 🔒 **Signs in once** | When Outrider asks devices on the network for a password, the app signs in and stays signed in until it changes. |
 | 🔁 **Reconnects** | Says plainly when Outrider can't be reached, and picks up again by itself when it's back. |
@@ -97,33 +97,48 @@ isn't answering); each keeps its own sign-in. A long press on one forgets it.
 
 ## Voice
 
-Say **"Hey Vespa"**, **"OK Vespa"** or **"Hello Vespa"**, wait for **LISTENING**, then ask your question. Outrider
-answers out loud in its own voice, and the answer shows on the tablet too. A small **◉ VESPA** in the
+Say **"Hey Vespa"**, **"OK Vespa"** or **"Hello Vespa"**, wait for the soft tone and **LISTENING**, then ask your
+question. Outrider answers out loud in its own voice, and the answer shows on the tablet too; when Outrider can't speak
+(its voice is off, or it runs on a server), the tablet reads the answer out instead. A small **◉ VESPA** in the
 bottom-left corner shows that the tablet is listening for the wake word. You can also tap **Ask** (in the page's
 footer or the Back menu) instead of saying it.
 
 In **Back → Voice**:
 
 <p align="center">
-  <img src="docs/images/app-voice.webp" alt="The app's Voice settings: the wake word, on or off, its sensitivity" width="600">
+  <img src="docs/images/app-voice.webp" alt="The app's Voice settings: the wake word, on or off, its sensitivity, the tone, speaking answers on the tablet, the media button" width="600">
 </p>
 
 - **the wake word**: any word in plain letters, *Vespa* by default (the prefixes OK, Okay, Hey and Hello stay);
 - **on or off**;
-- **sensitivity**: *High* hears you through more game noise, and mistakes similar words for it more often.
+- **sensitivity**: *High* hears you through more game noise, and mistakes similar words for it more often;
+- **tone**: the soft two-note tone when it starts listening (on);
+- **speak answers here**: read answers on the tablet when Outrider didn't speak them (on);
+- **media button**: a headset's play/pause button asks, like the Ask button (off).
+
+If Android has stopped asking for the microphone (it was refused), the screen says so and **Open Android settings**
+takes you to the app's permissions.
 
 The wake word is spotted on the tablet by a small open model ([sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)),
 so with loud game audio it can miss: raise the sensitivity, or tap Ask.
 
 ## Privacy and security
 
-- The app talks **only to the Outrider address you give it**, over plain HTTP on your own network, and loads nothing else
-  (other links open in the browser).
-- The **wake word** is listened for on the tablet itself, only while the app is on screen. No audio is kept or sent
-  for it.
+- The app talks **only to the Outrider address you give it**, over plain HTTP on your own network, and loads nothing
+  else: requests the page makes anywhere else (images, scripts, fonts) are blocked, and other links open in the
+  browser.
+- The **microphone** is asked for when the page first shows, since the wake word is on by default. While the wake
+  word is on and the app is on screen, the microphone is listened to continuously, on the tablet itself, for the
+  wake word only. No audio is kept or sent for it.
 - After the wake word (or Ask), **your question** goes through Android's speech recognizer: on the tablet when Android
   has an offline speech pack for your language, otherwise through the recognizer's own online service (Google's, on
   most tablets). The text then goes to Outrider like any other request.
+- Answers read out **on the tablet** use Android's text-to-speech engine, which works on the tablet with the engine's
+  installed voices.
+- The **media button** option (off by default) lets a headset's play/pause button start a question while the app is
+  on screen; the app doesn't take the button over otherwise.
+- On Android 8 and 9, the **storage** permission is asked for on the first export, to save to Downloads; refused,
+  exports go to the app's own folder.
 - Outrider's **password** stops accidents (another device on the network pressing game keys), not a determined
   attacker on your network: it crosses the network unencrypted. The app keeps the session token Outrider gives it,
   never the password.
@@ -183,6 +198,10 @@ python3 tools/fake_outrider.py                  # port 8026, password "test"
 python3 tools/fake_outrider.py --password ""    # no password
 python3 tools/fake_outrider.py --api 2          # Outrider newer than the app: "update the app"
 python3 tools/fake_outrider.py --old            # no /api/version: "update Outrider"
+python3 tools/fake_outrider.py --server-mode    # Outrider on a server: no game buttons
+python3 tools/fake_outrider.py --unspoken       # answers Outrider couldn't speak: the tablet reads them
+python3 tools/fake_outrider.py --slow 5         # a slow /api/ask (also --ask-429, --redirect)
+python3 tools/fake_outrider.py --selftest       # check the fake itself
 ```
 
 Debug builds also take a question from adb, as if it had been heard, to test `/api/ask` without speaking:
@@ -204,7 +223,7 @@ ignore fields they don't know.
 | `GET /api/version` | `{"outrider", "api", "min_app", "password", "signed_in", "game_pc"}`, open without a session (`game_pc`: false for Outrider in server mode) |
 | `POST /api/auth/signin` | `{"password"}` → `{"ok", "token"}` and a session cookie |
 | `POST /api/auth/signout` | ends the session |
-| `POST /api/ask` | `{"text", "source": "vespa"}` → `{"answer", "spoken", "matched", "command"}` (Outrider speaks the answer) |
+| `POST /api/ask` | `{"text", "source": "vespa"}` → `{"answer", "spoken", "matched", "command"}` (Outrider speaks the answer; with `"spoken": false` the app can read it out) |
 | Errors | `{"error": "<words>", "code": "<code>"}`: `bad_password`, `rate_limited` (+ `Retry-After`), `signin_required`, `app_too_old` (426), ... |
 | Headers | the app sends `X-Outrider-App: <version>` and `Authorization: Bearer <token>` on its own calls |
 
@@ -218,7 +237,7 @@ browser. The bridge exists only on the configured Outrider's pages.
 | `haptic(ms)` | a short vibration, up to 100 ms (nothing on tablets without a motor) |
 | `signInRequired()` | the session is gone: the app signs in again and reloads the page |
 | `setTheme(name)` | `"lcars"`, `"elite"`, `"babylon5"`, `"narn"`, `"sith"`, `"alliance"` or `"dark"`, so the app's own screens match the page |
-| `listen()` | listen for one spoken question, send it to `POST /api/ask` and show the answer |
+| `listen()` | listen for one spoken question, send it to `POST /api/ask` and show the answer (reading it out if Outrider didn't) |
 </details>
 
 ## Credits

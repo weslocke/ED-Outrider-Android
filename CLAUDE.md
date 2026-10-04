@@ -10,35 +10,49 @@ page <-> app bridge; the design history is in the author's (unpublished) Outride
 
 `app/src/main/java/io/github/weslocke/outrider/`:
 
-- `MainActivity.kt`: the flow (connect → version check → sign-in / update / page), the WebView and its guards, the
-  Back menu, the Voice screen, and when the wake word runs (`voiceIdle`).
+- `MainActivity.kt`: carries out the flow (connect → version check → sign-in / update / page), the WebView and its
+  guards (`shouldInterceptRequest` answers 403 to anything not on the Outrider's origin), the Back menu, the Voice
+  screen, and when the wake word runs (`voiceIdle`). Work off the main thread goes through `background()`, answers
+  come back through `onMain()`, which drops them after `onDestroy`; `/api/ask` has its own executor.
+- `Flow.kt`: the pure decisions: what to show after `/api/version`, and what a page HTTP error means (with the
+  401-loop guard).
 - `Contract.kt`: contract versions, `/api/version`, `/api/ask` and error parsing, version compatibility.
 - `OutriderApi.kt`: the app's own HTTP calls (blocking; run off the main thread).
 - `ServerAddress.kt`: parsing the typed address, and `isSameOrigin`, the guard on everything loaded or called.
 - `Bridge.kt`: `window.OutriderApp` (a document-start script + an origin-restricted web message listener).
-- `Prefs.kt`: what the app keeps (address, a token per Outrider, saved Outriders, theme, wake-word settings); never
-  the password.
-- `Servers.kt`: the saved Outriders (most recent first, at most 4, game PC or server) and the per-Outrider tokens.
-- `Ui.kt`, `AppTheme.kt`: the app's own screens, coloured and framed by the page's theme (lcars / elite / babylon5 /
-  narn / sith / alliance / dark, the same palettes as Outrider's `static/themes/`).
-- `Voice.kt`: one spoken question through Android's speech recognizer, and its pure helpers (`Speech`).
-- `WakeWord.kt`: the wake word ("OK / Okay / Hey / Hello <word>") on sherpa-onnx's keyword spotter, and the pure
-  `WakePhrases` (phrase list, sensitivity, word checks).
+- `Prefs.kt`: what the app keeps (address, saved Outriders, and per Outrider its token, sign-in cookie lines and
+  theme; voice settings); never the password.
+- `Servers.kt`: the saved Outriders (most recent first, at most 4, game PC or server), the per-Outrider tokens and
+  cookies (JSON), and the 1.0.0 token migration.
+- `Ui.kt`, `FlowRow.kt`, `AppTheme.kt`: the app's own screens (button rows wrap), coloured and framed by the page's theme (lcars / elite / babylon5 /
+  narn / sith / alliance / dark, the same palettes as Outrider's `static/themes/`). `ContrastTest` holds every theme
+  to WCAG contrast.
+- `Voice.kt`: one spoken question through Android's speech recognizer (on-device first, online fallback), and its
+  pure helpers (`Speech`: error wording, the microphone permission's state, the answer line).
+- `WakeWord.kt`: the wake word ("OK / Okay / Hey / Hello <word>") on sherpa-onnx's keyword spotter, one audio thread
+  per run token (an older run never reports or keeps the microphone); the pure `AudioReads` (what a read result
+  means) and `WakePhrases` (phrase list, sensitivity, word checks).
 - `Bpe.kt`: splits the configured word into the model's pieces. The model's "bpe.model" is really a sentencepiece
   UNIGRAM model (Viterbi); tested against sentencepiece's own output in `src/test/resources/bpe_gold.json`.
 
 Elsewhere:
 
-- `app/build.gradle.kts`: the `fetchVoice` task downloads the sherpa-onnx AAR and the keyword-spotting model into
-  `app/voice/` (git-ignored, SHA-256 pinned) before every build; release signing from `~/.android/`.
-- `tools/fake_outrider.py`: a stand-in Outrider (contract, `/api/ask`, a test page) on port 8026.
+- `app/build.gradle.kts`: the version (the version code is derived from it); the `fetchVoice` task downloads the
+  sherpa-onnx AAR and the keyword-spotting model into `app/voice/` (git-ignored, SHA-256 pinned; the extracted model
+  is checked against `app/voice/assets/kws/.manifest`) before every build; release signing from `~/.android/` (a
+  release without it fails unless `-PallowUnsigned`); APKs copied to `app/build/dist/`. Lint blocks a release on
+  anything not in `app/lint-baseline.xml`.
+- `app/src/test/`: JVM unit tests (junit 4, the real org.json). `TestHttpServer` is a small socket server for
+  `OutriderApiTest` (`com.sun.net.httpserver` isn't on the Android unit-test classpath).
+- `tools/fake_outrider.py`: a stand-in Outrider (contract, `/api/ask`, a test page) on port 8026; `--server-mode`,
+  `--slow N`, `--unspoken`, `--ask-429`, `--redirect` for the awkward cases, `--selftest` to check itself.
 - `design/launcher-icon.svg`: the icon's source; `app/src/main/res/drawable/ic_launcher_*.xml` are hand-converted
   from it (keep them in step).
 - `docs/images/`: README images.
 
 ## Rules
 
-- `./gradlew testDebugUnitTest assembleDebug` must pass. Pure logic lives outside Android classes so it can be
+- `./gradlew testDebugUnitTest assembleDebug lint` and `python3 tools/fake_outrider.py --selftest` must pass. Pure logic lives outside Android classes so it can be
   unit-tested; every fix gets a test where it can.
 - The native-facing contract and the bridge are versioned: change them only together with Outrider (talk to the
   Outrider side first). Ignore unknown fields; never require new ones.
@@ -58,3 +72,12 @@ Elsewhere:
 - The keyword spotter's phrases compete in one search: `maxActivePaths = 16` (not the default 4) or "OK Vespa" loses
   to "Hey"/"Hello". The "-mobile" KWS model crashes in sherpa-onnx 1.13.8; use the standard one.
 - `adb shell am start ... --es debug_ask` needs inner quotes for spaces (adb runs it through the tablet's shell).
+- Cookies are per host, not per port: two Outriders on one PC overwrite each other's session cookie, so the app keeps
+  each one's cookie lines and puts them back before loading its page.
+- Chromium hands back IPv6 hosts compressed and lower-cased (`fd00::20`), and leaves `|`, `^`, `{` unescaped in URLs;
+  compare canonical hosts, and don't parse page URLs with `java.net.URI`.
+- `HttpURLConnection` with fixed-length streaming lost the body of a 401 answer to a POST; the app doesn't use it.
+- A stroked outline in a `Drawable` washed the whole window out on the tablet; draw borders as filled shapes.
+- Never pipe `adb shell run-as <pkg> cat` into another `run-as` write of the same file: it emptied the prefs. Back
+  the file up first, edit a local copy, then `cat local | adb shell run-as <pkg> sh -c "'cat > shared_prefs/outrider.xml'"`,
+  and put the author's own settings back after testing.

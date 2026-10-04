@@ -37,7 +37,7 @@ object Bridge {
         data class Haptic(val ms: Int) : Message()
         object SignInRequired : Message()
         data class SetTheme(val name: String) : Message()
-        /** Tap-to-ask: listen for one spoken question and send it to /api/ask. */
+        /** The page's Ask button: listen for one spoken question and send it to /api/ask. */
         object Listen : Message()
     }
 
