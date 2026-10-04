@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Builds docs/images/themes-carousel.webp: the README's theme screenshots as one animated image that slides from
-theme to theme (GitHub strips scripts and styles, and shrinks wide tables, so a README can't scroll sideways).
+"""Builds the README's theme carousels: docs/images/themes-rail.webp (Outrider on the gaming PC, with the ship
+controls) and docs/images/themes-server.webp (Outrider on a server, without them), each the nine themes' Nearby as
+one animated image that slides from theme to theme (GitHub strips scripts and styles, and shrinks wide tables, so a
+README can't scroll sideways).
 
     python3 tools/theme_carousel.py
 
-Needs Pillow. Re-run it after changing a tablet-*.webp screenshot.
+Needs Pillow. Re-run it after changing a rail-*.webp or server-*.webp screenshot.
 """
 from pathlib import Path
 
@@ -12,17 +14,20 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 IMAGES = ROOT / "docs" / "images"
-OUT = IMAGES / "themes-carousel.webp"
+# the two sets: (screenshot prefix, carousel file)
+SETS = [("rail", "themes-rail.webp"), ("server", "themes-server.webp")]
 
-# (file, name, what the screenshot shows), in the order they slide past
+# (theme id, name as the page's picker shows it, a word on its look), in the order they slide past
 SLIDES = [
-    ("tablet-elite.webp", "Elite", "cockpit HUD · Here, with the system's bodies"),
-    ("tablet-babylon5.webp", "Babylon 5", "Earthforce · Nearby and a spoken status report"),
-    ("tablet-lcars-search.webp", "LCARS", "Star Trek · Search"),
-    ("tablet-narn.webp", "Narn", "Babylon 5 · Here"),
-    ("tablet-sith.webp", "Sith", "Star Wars · the galaxy map"),
-    ("tablet-alliance.webp", "Alliance", "Star Wars · Nearby"),
-    ("tablet-dark.webp", "Dark", "modern · Nearby with line icons and switches"),
+    ("elite", "Elite", "the cockpit HUD"),
+    ("babylon5", "Babylon 5 - Earthforce", "Earth Alliance consoles"),
+    ("narn", "Babylon 5 - Narn", "the Narn Regime"),
+    ("minbari", "Babylon 5 - Minbari", "the Minbari Federation"),
+    ("centauri", "Babylon 5 - Centauri", "the Centauri Republic"),
+    ("lcars", "LCARS", "Star Trek"),
+    ("sith", "Sith", "Star Wars"),
+    ("alliance", "Alliance", "Star Wars"),
+    ("dark", "Dark", "a modern dark interface"),
 ]
 
 WIDTH = 960
@@ -64,16 +69,16 @@ def caption(index):
     return bar
 
 
-def slide(index):
-    shot = Image.open(IMAGES / SLIDES[index][0]).convert("RGB").resize((WIDTH, SHOT_H), Image.LANCZOS)
+def slide(prefix, index):
+    shot = Image.open(IMAGES / f"{prefix}-{SLIDES[index][0]}.webp").convert("RGB").resize((WIDTH, SHOT_H), Image.LANCZOS)
     frame = Image.new("RGB", (WIDTH, SHOT_H + BAR_H), BAR_BG)
     frame.paste(shot, (0, 0))
     frame.paste(caption(index), (0, SHOT_H))
     return frame
 
 
-def main():
-    slides = [slide(i) for i in range(len(SLIDES))]
+def build(prefix, out):
+    slides = [slide(prefix, i) for i in range(len(SLIDES))]
     frames, durations = [], []
     for i, current in enumerate(slides):
         frames.append(current)
@@ -88,9 +93,14 @@ def main():
             f.paste(following, (WIDTH - offset, 0))
             frames.append(f)
             durations.append(SLIDE_MS)
-    frames[0].save(OUT, save_all=True, append_images=frames[1:], duration=durations, loop=0,
+    frames[0].save(out, save_all=True, append_images=frames[1:], duration=durations, loop=0,
                    quality=72, method=6, minimize_size=True)
-    print(f"{OUT.relative_to(ROOT)}: {len(frames)} frames, {OUT.stat().st_size // 1024} KB")
+    print(f"{out.relative_to(ROOT)}: {len(frames)} frames, {out.stat().st_size // 1024} KB")
+
+
+def main():
+    for prefix, name in SETS:
+        build(prefix, IMAGES / name)
 
 
 if __name__ == "__main__":

@@ -95,6 +95,37 @@ data class AppTheme(
             frame = Frame.CHAMFER,
         )
 
+        /** Babylon 5's Minbari Federation: lilac and pearl on deep indigo, sea-glass accents, soft pointed-window cards. */
+        val MINBARI = AppTheme(
+            name = "minbari",
+            background = 0xFF0F0C1C.toInt(),
+            primary = 0xFFB7A3E6.toInt(),
+            secondary = 0xFF5B4F86.toInt(),
+            accent = 0xFF7FD1C4.toInt(),
+            text = 0xFFECE7F6.toInt(),
+            onFill = 0xFF0F0C1C.toInt(),
+            alert = 0xFFFF8FA3.toInt(),
+            cornerRadiusDp = 14f,
+            frame = Frame.CARD,
+            // pearl on the violet secondary buttons (6.0:1); indigo on lilac and sea-glass
+            onSecondary = 0xFFECE7F6.toInt(),
+            surface = 0xFF1A1630.toInt(),
+        )
+        /** Babylon 5's Centauri Republic: gold on royal purple and plum-black, cream text, notched consoles. */
+        val CENTAURI = AppTheme(
+            name = "centauri",
+            background = 0xFF12080F.toInt(),
+            primary = 0xFFD4AF37.toInt(),
+            secondary = 0xFF5E2A5A.toInt(),
+            // gold, not the page's crimson (#A3203A), which is a fill only there: 2.65:1 as a line on this background
+            accent = 0xFFD4AF37.toInt(),
+            text = 0xFFF3E6C8.toInt(),
+            onFill = 0xFF12080F.toInt(),
+            alert = 0xFFFF6F7F.toInt(),
+            cornerRadiusDp = 0f,
+            frame = Frame.CONSOLE,
+            onSecondary = 0xFFF3E6C8.toInt(),
+        )
         /** Star Wars, Imperial / Sith: crimson on black, steel-white text, hard edges. */
         val SITH = AppTheme(
             name = "sith",
@@ -140,7 +171,7 @@ data class AppTheme(
             surface = 0xFF1C1F24.toInt(),
         )
 
-        private val ALL = listOf(LCARS, ELITE, BABYLON5, NARN, SITH, ALLIANCE, DARK).associateBy { it.name }
+        private val ALL = listOf(LCARS, ELITE, BABYLON5, NARN, MINBARI, CENTAURI, SITH, ALLIANCE, DARK).associateBy { it.name }
 
         fun named(name: String?): AppTheme = ALL[name?.lowercase()] ?: LCARS
 

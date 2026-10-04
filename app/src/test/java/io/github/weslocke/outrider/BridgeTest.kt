@@ -54,7 +54,7 @@ class BridgeTest {
         assertEquals("elite", AppTheme.named("elite").name)
         assertEquals("babylon5", AppTheme.named("BABYLON5").name)
         assertEquals(AppTheme.Frame.CHAMFER, AppTheme.named("elite").frame)
-        for (name in listOf("narn", "sith", "alliance", "dark")) assertEquals(name, AppTheme.named(name).name)
+        for (name in listOf("narn", "minbari", "centauri", "sith", "alliance", "dark")) assertEquals(name, AppTheme.named(name).name)
         // secondary buttons default to the fill text colour; the dark theme's grey ones get light text
         assertEquals(AppTheme.LCARS.onFill, AppTheme.LCARS.onSecondary)
         assertEquals(AppTheme.DARK.text, AppTheme.DARK.onSecondary)

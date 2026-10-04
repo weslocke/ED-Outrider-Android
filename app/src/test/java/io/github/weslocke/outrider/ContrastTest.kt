@@ -12,6 +12,8 @@ class ContrastTest {
             val surface = if (t.frame == AppTheme.Frame.CARD) t.surface else t.background
             check("${t.name} text", Contrast.ratio(t.text, surface), 4.5)
             check("${t.name} alert", Contrast.ratio(t.alert, surface), 4.5)
+            // the accent draws frame rules and the field border: a graphic, 3:1 (Centauri's crimson was 2.65)
+            check("${t.name} accent lines", Contrast.ratio(t.accent, t.background), 3.0)
             // button labels are 22 sp bold: large text
             check("${t.name} primary button", Contrast.ratio(t.onFill, t.primary), 3.0)
             check("${t.name} secondary button", Contrast.ratio(t.onSecondary, t.secondary), 3.0)

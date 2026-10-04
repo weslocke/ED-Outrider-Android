@@ -26,8 +26,8 @@ page <-> app bridge; the design history is in the author's (unpublished) Outride
 - `Servers.kt`: the saved Outriders (most recent first, at most 4, game PC or server), the per-Outrider tokens and
   cookies (JSON), and the 1.0.0 token migration.
 - `Ui.kt`, `FlowRow.kt`, `AppTheme.kt`: the app's own screens (button rows wrap), coloured and framed by the page's theme (lcars / elite / babylon5 /
-  narn / sith / alliance / dark, the same palettes as Outrider's `static/themes/`). `ContrastTest` holds every theme
-  to WCAG contrast.
+  narn / minbari / centauri / sith / alliance / dark, the same palettes as Outrider's `static/themes/`). `ContrastTest`
+  holds every theme to WCAG contrast, the accent too, as a line colour (3:1). The emblems are the page's alone.
 - `Voice.kt`: one spoken question through Android's speech recognizer (on-device first, online fallback), and its
   pure helpers (`Speech`: error wording, the microphone permission's state, the answer line).
 - `WakeWord.kt`: the wake word ("OK / Okay / Hey / Hello <word>") on sherpa-onnx's keyword spotter, one audio thread
@@ -49,7 +49,8 @@ Elsewhere:
   `--slow N`, `--unspoken`, `--ask-429`, `--redirect` for the awkward cases, `--theme NAME` for the app's screens, `--selftest` to check itself.
 - `design/launcher-icon.svg`: the icon's source; `app/src/main/res/drawable/ic_launcher_*.xml` are hand-converted
   from it (keep them in step).
-- `docs/images/`: README images. `themes-carousel.webp` is built from the `tablet-*.webp` screenshots by
+- `docs/images/`: README images. `themes-rail.webp` and `themes-server.webp` are built from the `rail-*.webp` and
+  `server-*.webp` screenshots (Nearby in every theme, from the author's game PC and Docker server) by
   `python3 tools/theme_carousel.py` (Pillow): re-run it after changing one. GitHub shrinks wide tables and strips
   scripts, so an animated image is the only way a README can page through screenshots.
 

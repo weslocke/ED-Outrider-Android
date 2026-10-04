@@ -7,6 +7,8 @@
   `openMenu()`. Back still opens the menu.
 - The app's "Settings" button (the Back menu, Connecting, No link, sign-in, update) is now **Server**, so it isn't
   confused with the page's Settings.
+- Two more themes for the app's own screens: Babylon 5's Minbari (lilac and pearl, soft cards) and Centauri (gold on
+  royal purple), matching Outrider 2026.10.9's.
 - Cancel or Back on the Server screen returns straight to the page when it is still loaded, instead of reconnecting.
 - The page may play any sound without a tap first. Outrider's **Play alerts here** (its alerts spoken on the tablet,
   e.g. when it runs on a server with no PC window open) uses Web Audio, which Android's WebView already allowed;

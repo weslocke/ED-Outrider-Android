@@ -33,7 +33,7 @@ the tablet sleeps, and listens for your voice.
 > **[github.com/weslocke/ED-Outrider](https://github.com/weslocke/ED-Outrider)**.
 
 <p align="center">
-  <img src="docs/images/tablet-elite.webp" alt="The tablet layout in the Elite theme: Here, with the system's bodies drawn from scan data, and the ship controls on the right" width="900">
+  <img src="docs/images/rail-elite.webp" alt="The tablet layout in the Elite theme: Nearby, the Explorer Elite emblem under the page list, and the ship controls on the right" width="900">
 </p>
 
 ## Features
@@ -44,7 +44,7 @@ the tablet sleeps, and listens for your voice.
 | 🕹️ **Ship controls** | A column of game buttons (landing gear, cargo scoop, lights, silent running, ...) that press your own key bindings in the game, lit from the game's own status. Changes with the vehicle: ship, SRV, fighter, on foot. *(Needs Outrider on the gaming PC, on Linux; an Outrider in server mode shows no game buttons.)* |
 | 🎙️ **"Hey Vespa"** | Say *"Hey / OK / Hello Vespa"*, then ask: *status report*, *fuel*, *unsold*, *next jump*, *what's left here*, *nearest unvisited*, *hush*. Outrider answers out loud in its own voice (or the tablet reads it, when Outrider can't). The wake word is yours to change. |
 | 🔊 **Alerts on the tablet** | With Outrider on a server and no browser open, the tablet itself speaks Outrider's alerts in Outrider's voice and plays its sounds; you pick which ones. |
-| 🎨 **Themes** | LCARS, Elite (cockpit HUD), Babylon 5 (Earthforce and Narn), Star Wars (Sith and Alliance) and a modern Dark mode, picked in the page's settings; the app's own screens follow. |
+| 🎨 **Themes** | Elite (cockpit HUD), Babylon 5 (Earthforce, Narn, Minbari and Centauri), LCARS, Star Wars (Sith and Alliance) and a modern Dark mode, with their factions' emblems; picked in the page's settings, and the app's own screens follow. |
 | 🔒 **Signs in once** | When Outrider asks devices on the network for a password, the app signs in and stays signed in until it changes. |
 | 🔁 **Reconnects** | Says plainly when Outrider can't be reached, and picks up again by itself when it's back. |
 | ⬇️ **Exports** | Outrider's CSV and JSON exports save to the tablet's Downloads. |
@@ -52,18 +52,41 @@ the tablet sleeps, and listens for your voice.
 
 ### Themes
 
+Nine themes, picked in Outrider's tablet **Settings**; the app's own screens follow. Each one but LCARS and Dark shows
+its faction's emblem under the page list (**Show the theme's emblem** turns it off).
+
+**With the ship controls** (Outrider on the gaming PC):
+
 <p align="center">
-  <img src="docs/images/themes-carousel.webp" alt="The seven themes in turn: Elite, Babylon 5, LCARS, Narn, Sith, Alliance and Dark" width="900">
+  <img src="docs/images/themes-rail.webp" alt="Nearby in the nine themes in turn, with the ship controls on the right: Elite, Babylon 5 - Earthforce, Narn, Minbari and Centauri, LCARS, Sith, Alliance and Dark" width="900">
 </p>
 
-<p align="center"><sub>Seven themes, sliding past in turn. Full size:
-<a href="docs/images/tablet-elite.webp">Elite</a> ·
-<a href="docs/images/tablet-babylon5.webp">Babylon 5</a> ·
-<a href="docs/images/tablet-lcars-search.webp">LCARS</a> ·
-<a href="docs/images/tablet-narn.webp">Narn</a> ·
-<a href="docs/images/tablet-sith.webp">Sith</a> ·
-<a href="docs/images/tablet-alliance.webp">Alliance</a> ·
-<a href="docs/images/tablet-dark.webp">Dark</a></sub></p>
+**Outrider on a server** (no game buttons, the page uses the whole width):
+
+<p align="center">
+  <img src="docs/images/themes-server.webp" alt="Nearby in the nine themes in turn, without the ship controls" width="900">
+</p>
+
+<p align="center"><sub>Full size, with the ship controls:
+<a href="docs/images/rail-elite.webp">Elite</a> ·
+<a href="docs/images/rail-babylon5.webp">Earthforce</a> ·
+<a href="docs/images/rail-narn.webp">Narn</a> ·
+<a href="docs/images/rail-minbari.webp">Minbari</a> ·
+<a href="docs/images/rail-centauri.webp">Centauri</a> ·
+<a href="docs/images/rail-lcars.webp">LCARS</a> ·
+<a href="docs/images/rail-sith.webp">Sith</a> ·
+<a href="docs/images/rail-alliance.webp">Alliance</a> ·
+<a href="docs/images/rail-dark.webp">Dark</a><br>
+on a server:
+<a href="docs/images/server-elite.webp">Elite</a> ·
+<a href="docs/images/server-babylon5.webp">Earthforce</a> ·
+<a href="docs/images/server-narn.webp">Narn</a> ·
+<a href="docs/images/server-minbari.webp">Minbari</a> ·
+<a href="docs/images/server-centauri.webp">Centauri</a> ·
+<a href="docs/images/server-lcars.webp">LCARS</a> ·
+<a href="docs/images/server-sith.webp">Sith</a> ·
+<a href="docs/images/server-alliance.webp">Alliance</a> ·
+<a href="docs/images/server-dark.webp">Dark</a></sub></p>
 
 ## Getting started
 
@@ -288,7 +311,7 @@ browser. The bridge exists only on the configured Outrider's pages.
 | `appVersion()` | e.g. `"1.1.0"` |
 | `haptic(ms)` | a short vibration, up to 100 ms (nothing on tablets without a motor) |
 | `signInRequired()` | the session is gone: the app signs in again and reloads the page |
-| `setTheme(name)` | `"lcars"`, `"elite"`, `"babylon5"`, `"narn"`, `"sith"`, `"alliance"` or `"dark"`, so the app's own screens match the page |
+| `setTheme(name)` | `"lcars"`, `"elite"`, `"babylon5"`, `"narn"`, `"minbari"`, `"centauri"`, `"sith"`, `"alliance"` or `"dark"`, so the app's own screens match the page (an unknown name: LCARS colours) |
 | `listen()` | listen for one spoken question, send it to `POST /api/ask` and show the answer (reading it out if Outrider didn't) |
 | `openServer()`, `openVoice()`, `openMenu()` | open the app's own Server, Voice or menu screen over the page, which stays loaded underneath (app 1.2+; for the page's Settings → Tablet app) |
 </details>
@@ -298,9 +321,19 @@ browser. The bridge exists only on the configured Outrider's pages.
 - [ED Outrider](https://github.com/weslocke/ED-Outrider), which this app is a window onto.
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) and its English keyword-spotting model (Apache-2.0), for the
   wake word.
-- Elite Dangerous is © Frontier Developments plc. This is an unofficial fan project, not affiliated with or endorsed
-  by Frontier. The themes are inspired by Star Trek's LCARS, Babylon 5 and Star Wars and use no assets from any of them;
-  the Dark theme's icons are [Lucide](https://lucide.dev) (ISC), served by Outrider.
+- Elite Dangerous is © Frontier Developments plc. Assets borrowed from Elite Dangerous, with permission of Frontier
+  Developments plc: ED Outrider for Android shows assets and imagery from Elite Dangerous (the Elite theme's Explorer
+  Elite emblem, served by Outrider), with the permission of Frontier Developments plc, for non-commercial purposes. It
+  is not endorsed by nor reflects the views or opinions of Frontier Developments and no employee of Frontier
+  Developments was involved in the making of it. ([Frontier's media usage rules](https://customersupport.frontier.co.uk/hc/en-us/articles/4404292442642-How-can-I-use-Elite-Dangerous-media))
+- The themes are inspired by Babylon 5, Star Trek's LCARS and Star Wars. Their only assets from those are the faction
+  emblems, which Outrider serves and credits (its `static/emblems/CREDITS.txt`): the Babylon 5 ones are public-domain
+  redrawings from the [Babylon 5 Wiki](https://babylon5.fandom.com) (the emblems themselves are Babylon 5's, © Warner
+  Bros.); the Sith emblem is by Gameposo, vectorised by Marnanel, on
+  [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Logo-sith-empire.svg) (CC BY-SA 4.0); the Rebel Alliance
+  starbird is [public domain](https://commons.wikimedia.org/wiki/File:Rebel_Alliance_logo.svg) (a Lucasfilm
+  trademark). Unofficial fan use; these files aren't under this project's GPL. The Dark theme's icons are
+  [Lucide](https://lucide.dev) (ISC), served by Outrider.
 
 ## Licence
 
