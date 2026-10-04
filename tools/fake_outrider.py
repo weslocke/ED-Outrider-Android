@@ -23,6 +23,7 @@ Outrider's port). Requests from 127.0.0.1/::1 need no session, like the real Out
     python3 tools/fake_outrider.py --ask-429          # /api/ask is rate limited
     python3 tools/fake_outrider.py --redirect         # every request answers 301 to https (a proxy)
     python3 tools/fake_outrider.py --theme sith       # the test page sets the app's theme when it loads
+(the test page also shows whether Web Audio and an <audio> element could play without a tap)
     python3 tools/fake_outrider.py --selftest         # check the stand-in's own answers, then exit
 """
 import argparse
@@ -241,6 +242,8 @@ TEST_PAGE = r"""<!doctype html>
     <div><span class="k">link</span> <span id="link">?</span></div>
     <div><span class="k">user agent</span> <span id="ua" style="font-size:14px"></span></div>
     <div><span class="k">localStorage visits</span> <span id="visits"></span></div>
+    <div><span class="k">audio on load</span> <span id="audio">?</span></div>
+    <div><span class="k">&lt;audio&gt; on load</span> <span id="media">?</span></div>
     <p><input placeholder="keyboard test"></p>
   </div>
   <div>
@@ -249,6 +252,9 @@ TEST_PAGE = r"""<!doctype html>
     <button onclick="expire()">Drop sessions</button>
     <button onclick="theme()">setTheme lcars</button>
     <button onclick="if (A && A.listen) A.listen(); else log('no OutriderApp.listen')">Ask</button><br>
+    <button onclick="open_('openServer')">App: Server…</button>
+    <button onclick="open_('openVoice')">App: Voice…</button>
+    <button onclick="open_('openMenu')">App: menu…</button><br>
     <a class="btn" href="/api/export.csv">Download CSV</a>
     <a class="btn" href="https://example.com/">External link</a>
     <a class="btn" id="otherport" href="#">Other port</a>
@@ -269,6 +275,29 @@ TEST_PAGE = r"""<!doctype html>
   function haptic() { if (A && A.haptic) { A.haptic(30); log("haptic(30) sent"); } else if (navigator.vibrate) { navigator.vibrate(30); log("navigator.vibrate"); } }
   function theme(name) { name = name || "lcars"; if (A && A.setTheme) { A.setTheme(name); log("setTheme(" + name + ")"); } }
   if (__THEME__) theme(__THEME__);
+  function open_(name) { if (A && A[name]) { A[name](); log(name + "()"); } else log("no OutriderApp." + name + " (an older app)"); }
+  // like Outrider's "Play alerts here": Web Audio started with no tap (the app allows it); a short beep if it runs
+  try {
+    const ctx = new AudioContext();
+    const show = () => { $("audio").textContent = ctx.state + (ctx.state === "running" ? " (no tap needed)" : " (waits for a tap)"); };
+    ctx.onstatechange = show; show();
+    ctx.resume().then(() => {
+      show();
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      g.gain.value = 0.05; o.frequency.value = 660; o.connect(g).connect(ctx.destination);
+      o.start(); o.stop(ctx.currentTime + 0.15);
+    });
+  } catch (e) { $("audio").textContent = "no Web Audio"; }
+  // an <audio> element too (Android's no-tap rule is about media elements): a silent 0.1 s WAV
+  try {
+    const n = 800, b = new Uint8Array(44 + n), v = new DataView(b.buffer), w = (o, t) => [...t].forEach((c, i) => b[o + i] = c.charCodeAt(0));
+    w(0, "RIFF"); v.setUint32(4, 36 + n, true); w(8, "WAVEfmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+    v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true);
+    v.setUint16(34, 8, true); w(36, "data"); v.setUint32(40, n, true); b.fill(128, 44);
+    const a = new Audio(URL.createObjectURL(new Blob([b], {type: "audio/wav"})));
+    a.play().then(() => { $("media").textContent = "played (no tap needed)"; },
+                  e => { $("media").textContent = "blocked: " + e.name; });
+  } catch (e) { $("media").textContent = "error: " + e.message; }
   let last = 0;
   async function ping(verbose) {
     try {

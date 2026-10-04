@@ -28,7 +28,10 @@ object Bridge {
             signInRequired: function () { send({ type: "signInRequired" }); },
             appVersion: function () { return ${JSONObject.quote(appVersion)}; },
             setTheme: function (name) { send({ type: "setTheme", name: String(name) }); },
-            listen: function () { send({ type: "listen" }); }
+            listen: function () { send({ type: "listen" }); },
+            openServer: function () { send({ type: "open", screen: "server" }); },
+            openVoice: function () { send({ type: "open", screen: "voice" }); },
+            openMenu: function () { send({ type: "open", screen: "menu" }); }
           }) });
         })();
     """.trimIndent()
@@ -39,7 +42,11 @@ object Bridge {
         data class SetTheme(val name: String) : Message()
         /** The page's Ask button: listen for one spoken question and send it to /api/ask. */
         object Listen : Message()
+        /** The page's Settings opening one of the app's own screens (they return to the page when left). */
+        data class Open(val screen: AppScreen) : Message()
     }
+
+    enum class AppScreen { SERVER, VOICE, MENU }
 
     /** The longest vibration a page can ask for: rail presses want a short tick, not a buzz. */
     const val MAX_HAPTIC_MS = 100
@@ -59,6 +66,12 @@ object Bridge {
             }
             "signInRequired" -> Message.SignInRequired
             "listen" -> Message.Listen
+            "open" -> when (o.optString("screen")) {
+                "server" -> Message.Open(AppScreen.SERVER)
+                "voice" -> Message.Open(AppScreen.VOICE)
+                "menu" -> Message.Open(AppScreen.MENU)
+                else -> null
+            }
             "setTheme" -> o.optString("name").trim().lowercase().takeIf { it.isNotEmpty() && it.length <= 40 }
                 ?.let { Message.SetTheme(it) }
             else -> null

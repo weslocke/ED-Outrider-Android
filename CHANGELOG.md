@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.0 (unreleased)
+
+- The app's settings are in Outrider's own Settings: a **Tablet app** section (Outrider 2026.10.4 or newer) opens the
+  app's Server, Voice and menu screens through three new bridge calls, `openServer()`, `openVoice()` and
+  `openMenu()`. Back still opens the menu.
+- The app's "Settings" button (the Back menu, Connecting, No link, sign-in, update) is now **Server**, so it isn't
+  confused with the page's Settings.
+- Cancel or Back on the Server screen returns straight to the page when it is still loaded, instead of reconnecting.
+- The page may play any sound without a tap first. Outrider's **Play alerts here** (its alerts spoken on the tablet,
+  e.g. when it runs on a server with no PC window open) uses Web Audio, which Android's WebView already allowed;
+  `<audio>` elements were blocked until the first touch, and now play too.
+
 ## 1.1.0 (2026-10-04)
 
 **New**

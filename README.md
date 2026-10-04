@@ -87,11 +87,13 @@ adb install -r ED-Outrider-1.1.0.apk
 has a `[server] password`, the app asks for it once.
 
 **Using it.** The tablet layout is Outrider's: tap the groups on the left, the pages under them, rows for details.
-Press **Back** for the app's own menu: back to Outrider, reload, ask, voice, settings, sign out.
+The app's own settings are in Outrider's **Settings**, under **Tablet app**: **Server…** (which Outrider to use),
+**Voice…** and **App menu…** (reload, ask, sign out). **Back** opens the same app menu from anywhere.
 
 **More than one Outrider.** The app remembers the last four Outriders it connected to, labelled *game PC* or
-*server* from what each says about itself. Switch between them from the Back menu (or the address screen, or when one
-isn't answering); each keeps its own sign-in. A long press on one forgets it.
+*server* from what each says about itself. Switch between them from **Settings → Tablet app → Server…** (or the Back
+menu, or when one isn't answering), or type a new address there; each keeps its own sign-in. A long press on one
+forgets it.
 
 ## Voice
 
@@ -101,7 +103,7 @@ question. Outrider answers out loud in its own voice, and the answer shows on th
 bottom-left corner shows that the tablet is listening for the wake word. You can also tap **Ask** (in the page's
 footer or the Back menu) instead of saying it.
 
-In **Back → Voice**:
+In **Settings → Tablet app → Voice…** (or **Back → Voice**):
 
 <p align="center">
   <img src="docs/images/app-voice.webp" alt="The app's Voice settings: the wake word, on or off, its sensitivity, the tone, speaking answers on the tablet, the media button" width="600">
@@ -111,7 +113,8 @@ In **Back → Voice**:
 - **on or off**;
 - **sensitivity**: *High* hears you through more game noise, and mistakes similar words for it more often;
 - **tone**: the soft two-note tone when it starts listening (on);
-- **speak answers here**: read answers on the tablet when Outrider didn't speak them (on);
+- **speak answers here**: read answers on the tablet when Outrider didn't speak them (on); not needed when Outrider's
+  own **Play alerts here** is ticked, since the page then speaks them in Outrider's voice;
 - **media button**: a headset's play/pause button asks, like the Ask button (off).
 
 If Android has stopped asking for the microphone (it was refused), the screen says so and **Open Android settings**
@@ -132,7 +135,8 @@ so with loud game audio it can miss: raise the sensitivity, or tap Ask.
   has an offline speech pack for your language, otherwise through the recognizer's own online service (Google's, on
   most tablets). The text then goes to Outrider like any other request.
 - Answers read out **on the tablet** use Android's text-to-speech engine, which works on the tablet with the engine's
-  installed voices.
+  installed voices. With **Play alerts here** ticked in Outrider's Settings, the page speaks alerts and answers on the
+  tablet in Outrider's own voice instead (Outrider's sound, fetched from Outrider), with no tap needed first.
 - The **media button** option (off by default) lets a headset's play/pause button start a question while the app is
   on screen; the app doesn't take the button over otherwise.
 - On Android 8 and 9, the **storage** permission is asked for on the first export, to save to Downloads; refused,
@@ -237,6 +241,7 @@ browser. The bridge exists only on the configured Outrider's pages.
 | `signInRequired()` | the session is gone: the app signs in again and reloads the page |
 | `setTheme(name)` | `"lcars"`, `"elite"`, `"babylon5"`, `"narn"`, `"sith"`, `"alliance"` or `"dark"`, so the app's own screens match the page |
 | `listen()` | listen for one spoken question, send it to `POST /api/ask` and show the answer (reading it out if Outrider didn't) |
+| `openServer()`, `openVoice()`, `openMenu()` | open the app's own Server, Voice or menu screen over the page, which stays loaded underneath (app 1.2+; for the page's Settings → Tablet app) |
 </details>
 
 ## Credits

@@ -19,7 +19,8 @@ page <-> app bridge; the design history is in the author's (unpublished) Outride
 - `Contract.kt`: contract versions, `/api/version`, `/api/ask` and error parsing, version compatibility.
 - `OutriderApi.kt`: the app's own HTTP calls (blocking; run off the main thread).
 - `ServerAddress.kt`: parsing the typed address, and `isSameOrigin`, the guard on everything loaded or called.
-- `Bridge.kt`: `window.OutriderApp` (a document-start script + an origin-restricted web message listener).
+- `Bridge.kt`: `window.OutriderApp` (a document-start script + an origin-restricted web message listener). Additions
+  that a page feature-detects (like `openServer`/`openVoice`/`openMenu` in 1.2) keep `bridgeVersion` 1.
 - `Prefs.kt`: what the app keeps (address, saved Outriders, and per Outrider its token, sign-in cookie lines and
   theme; voice settings); never the password.
 - `Servers.kt`: the saved Outriders (most recent first, at most 4, game PC or server), the per-Outrider tokens and

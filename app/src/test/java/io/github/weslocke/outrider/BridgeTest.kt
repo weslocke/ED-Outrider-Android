@@ -12,6 +12,23 @@ class BridgeTest {
         assertEquals(Bridge.Message.SignInRequired, Bridge.parse("""{"type":"signInRequired"}"""))
         assertEquals(Bridge.Message.SetTheme("lcars"), Bridge.parse("""{"type":"setTheme","name":" LCARS "}"""))
         assertEquals(Bridge.Message.Listen, Bridge.parse("""{"type":"listen"}"""))
+        assertEquals(Bridge.Message.Open(Bridge.AppScreen.SERVER), Bridge.parse("""{"type":"open","screen":"server"}"""))
+        assertEquals(Bridge.Message.Open(Bridge.AppScreen.VOICE), Bridge.parse("""{"type":"open","screen":"voice"}"""))
+        assertEquals(Bridge.Message.Open(Bridge.AppScreen.MENU), Bridge.parse("""{"type":"open","screen":"menu"}"""))
+    }
+
+    /** Every argument-free method the script defines sends a message the app understands. */
+    @Test fun scriptMessagesParse() {
+        val method = Regex("""(\w+): function \(\) \{ send\((\{[^}]*\})\); \}""")
+        val sent = method.findAll(Bridge.script("1.1.0")).associate { m ->
+            m.groupValues[1] to Bridge.parse(m.groupValues[2].replace(Regex("""(\w+):"""), "\"$1\":"))
+        }
+        assertEquals(setOf("signInRequired", "listen", "openServer", "openVoice", "openMenu"), sent.keys)
+        assertEquals(Bridge.Message.Open(Bridge.AppScreen.SERVER), sent["openServer"])
+        assertEquals(Bridge.Message.Open(Bridge.AppScreen.VOICE), sent["openVoice"])
+        assertEquals(Bridge.Message.Open(Bridge.AppScreen.MENU), sent["openMenu"])
+        assertEquals(Bridge.Message.Listen, sent["listen"])
+        assertEquals(Bridge.Message.SignInRequired, sent["signInRequired"])
     }
 
     @Test fun junkIsIgnored() {
@@ -21,6 +38,8 @@ class BridgeTest {
         assertNull(Bridge.parse("""{"type":"haptic"}"""))
         assertNull(Bridge.parse("""{"type":"setTheme","name":""}"""))
         assertNull(Bridge.parse("""{"type":"somethingNewer"}"""))
+        assertNull(Bridge.parse("""{"type":"open"}"""))
+        assertNull(Bridge.parse("""{"type":"open","screen":"settings"}"""))
     }
 
     @Test fun scriptCarriesTheVersionsSafely() {

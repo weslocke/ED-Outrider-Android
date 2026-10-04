@@ -250,7 +250,7 @@ class MainActivity : ComponentActivity() {
         when (state) {
             State.PAGE -> showMenu()
             State.MENU, State.VOICE -> backToPage()
-            State.SETUP -> if (prefs.address != null) connect() else leave(callback)
+            State.SETUP -> if (prefs.address != null) leaveSetup() else leave(callback)
             else -> leave(callback)
         }
     }
@@ -298,7 +298,7 @@ class MainActivity : ComponentActivity() {
         else if (!quiet) show(State.CONNECTING, Screen.Spec(
             title = "Connecting",
             body = "Looking for Outrider at ${address.display}…",
-            buttons = listOf(Screen.Button("Settings", primary = false) { showSetup() }),
+            buttons = listOf(Screen.Button("Server", primary = false) { showSetup() }),
         ))
         val api = OutriderApi(address, prefs.token, appVersion)
         background(io) {
@@ -398,6 +398,8 @@ class MainActivity : ComponentActivity() {
             allowFileAccess = false
             allowContentAccess = false
             setSupportMultipleWindows(false)
+            // the page's "Play alerts here" speaks and sounds alerts with no tap first (only Outrider loads here)
+            mediaPlaybackRequiresUserGesture = false
             javaScriptCanOpenWindowsAutomatically = false
             userAgentString = "$userAgentString OutriderApp/$appVersion"
         }
@@ -456,6 +458,12 @@ class MainActivity : ComponentActivity() {
             }
             is Bridge.Message.SetTheme -> prefs.theme = message.name
             Bridge.Message.Listen -> if (state == State.PAGE) startAsk()
+            // from the page's Settings: only over the page, so a stray call can't pull the user out of another screen
+            is Bridge.Message.Open -> if (state == State.PAGE) when (message.screen) {
+                Bridge.AppScreen.SERVER -> showSetup()
+                Bridge.AppScreen.VOICE -> showVoice()
+                Bridge.AppScreen.MENU -> showMenu()
+            }
             null -> {}
         }
     }
@@ -734,7 +742,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         val buttons = mutableListOf(Screen.Button("Connect") { save() })
-        if (current != null) buttons += Screen.Button("Cancel", primary = false) { connect() }
+        if (current != null) buttons += Screen.Button("Cancel", primary = false) { leaveSetup() }
         s = show(State.SETUP, Screen.Spec(
             title = "Outrider's address",
             body = "The address of the computer running Outrider on your network (your gaming PC, or another machine), e.g. 192.168.1.20. " +
@@ -746,6 +754,11 @@ class MainActivity : ComponentActivity() {
             footer = "ED Outrider for Android $appVersion",
         ))
         focusField(s)
+    }
+
+    /** Leaving the server screen unchanged: straight back to the page when it's still there, else connect. */
+    private fun leaveSetup() {
+        if (web != null && pageLoaded && webAddress == prefs.address) backToPage() else connect()
     }
 
     private fun signInBody(address: ServerAddress) =
@@ -764,7 +777,7 @@ class MainActivity : ComponentActivity() {
             error = note,
             buttons = listOf(
                 Screen.Button("Sign in") { submit() },
-                Screen.Button("Settings", primary = false) { showSetup() },
+                Screen.Button("Server", primary = false) { showSetup() },
             ),
             choices = savedChoices(),
             choicesLabel = "Or switch to:",
@@ -779,7 +792,7 @@ class MainActivity : ComponentActivity() {
             body = reason + "\n\n" + if (app) "Install the newest ED Outrider APK on this tablet." else "Update Outrider and restart it.",
             buttons = listOf(
                 Screen.Button("Try again") { connect() },
-                Screen.Button("Settings", primary = false) { showSetup() },
+                Screen.Button("Server", primary = false) { showSetup() },
             ),
             footer = footer(),
         ))
@@ -801,7 +814,7 @@ class MainActivity : ComponentActivity() {
             body = "",
             buttons = listOf(
                 Screen.Button("Retry now") { connect() },
-                Screen.Button("Settings", primary = false) { showSetup() },
+                Screen.Button("Server", primary = false) { showSetup() },
             ),
             choices = savedChoices(),
             choicesLabel = "Or switch to:",
@@ -829,7 +842,7 @@ class MainActivity : ComponentActivity() {
             Screen.Button("Back to Outrider") { backToPage() },
             // through showPage: it recreates the WebView if its renderer died while the menu was up
             Screen.Button("Reload", primary = false) { showPage(reload = true) },
-            Screen.Button("Settings", primary = false) { showSetup() },
+            Screen.Button("Server", primary = false) { showSetup() },
         )
         buttons += Screen.Button("Ask", primary = false) {
             backToPage()
@@ -1087,7 +1100,8 @@ class MainActivity : ComponentActivity() {
             body = "Say OK, Hey or Hello and the wake word, wait for LISTENING, then ask: a status report, fuel, " +
                 "unsold, the next jump, what's left here, the nearest unvisited system, hush or unhush. Outrider " +
                 "answers out loud in its own voice; when it can't (no PC window speaking), \"Speak answers here\" " +
-                "reads the answer on the tablet.\n\nThe tablet listens for the wake word only while ED Outrider is on " +
+                "reads the answer on the tablet. With \"Play alerts here\" ticked in Outrider's Settings, the page " +
+                "speaks everything here in Outrider's voice instead, and this stays quiet.\n\nThe tablet listens for the wake word only while ED Outrider is on " +
                 "screen, on the tablet itself; only the question you ask after it goes on to be understood. " +
                 "\"Media button\" lets a headset's play/pause button ask instead." + mic,
             field = Screen.Field(hint = WakePhrases.DEFAULT_WORD, text = draft.word, onDone = { save() }),
