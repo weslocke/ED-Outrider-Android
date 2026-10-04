@@ -29,3 +29,6 @@ app/voice/
 .vscode/
 __pycache__/
 *.pyc
+
+# Private notes and reviews (not published)
+project/

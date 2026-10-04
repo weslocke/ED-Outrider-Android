@@ -68,5 +68,12 @@ object Servers {
         return out
     }
 
+    /**
+     * 1.0.0 kept one token under a single key: it belongs to the Outrider saved alongside it ([origin]). An origin
+     * that already has its own token keeps it. Returns the merged tokens.
+     */
+    fun migrateLegacyToken(tokens: Map<String, String>, legacy: String?, origin: String?): Map<String, String> =
+        if (legacy.isNullOrEmpty() || origin == null || origin in tokens) tokens else tokens + (origin to legacy)
+
     fun tokensToJson(tokens: Map<String, String>): String = JSONObject(tokens as Map<*, *>).toString()
 }

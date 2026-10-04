@@ -37,6 +37,15 @@ class ServersTest {
         assertEquals(listOf(SavedServer(pc)), Servers.forget(listOf(SavedServer(nas), SavedServer(pc)), nas))
     }
 
+    @Test fun legacyTokenMovesToItsOutrider() {
+        assertEquals(mapOf(pc.origin to "old"), Servers.migrateLegacyToken(emptyMap(), "old", pc.origin))
+        // an Outrider that already has its own token keeps it
+        assertEquals(mapOf(pc.origin to "new"), Servers.migrateLegacyToken(mapOf(pc.origin to "new"), "old", pc.origin))
+        // no address saved yet, or no legacy token: nothing to move
+        assertEquals(emptyMap<String, String>(), Servers.migrateLegacyToken(emptyMap(), "old", null))
+        assertEquals(mapOf(nas.origin to "x"), Servers.migrateLegacyToken(mapOf(nas.origin to "x"), null, pc.origin))
+    }
+
     @Test fun tokensPerOutrider() {
         val t = mapOf(pc.origin to "abc", nas.origin to "def")
         assertEquals(t, Servers.tokensFromJson(Servers.tokensToJson(t)))

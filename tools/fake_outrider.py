@@ -2,7 +2,7 @@
 """A stand-in for Outrider's native-facing contract, for trying the app before (or without) the real server.
 
 Implements what the app relies on (PLAN-tablet-2026-10-02, "The API contract for the app"):
-  GET  /api/version          open; {"outrider", "api", "min_app", "password", "signed_in"}
+  GET  /api/version          open; {"outrider", "api", "min_app", "password", "signed_in", "game_pc"}
   POST /api/auth/signin      {"password"} -> {"ok", "token"} + Set-Cookie; 401 bad_password; 429 rate_limited
   POST /api/auth/signout     ends the session
   POST /api/ask              {"text"} -> {"answer", "spoken", "matched", "command"} (a few fixed phrases)
@@ -17,12 +17,21 @@ Outrider's port). Requests from 127.0.0.1/::1 need no session, like the real Out
     python3 tools/fake_outrider.py --password ""      # no password
     python3 tools/fake_outrider.py --api 2            # "update the app"
     python3 tools/fake_outrider.py --old              # no /api/version: "update Outrider"
+    python3 tools/fake_outrider.py --server-mode      # game_pc false: an Outrider on a server
+    python3 tools/fake_outrider.py --slow 30          # /api/ask answers after 30 s (the AI layer, a sleepy PC)
+    python3 tools/fake_outrider.py --unspoken         # /api/ask answers with spoken false (no PC window speaking)
+    python3 tools/fake_outrider.py --ask-429          # /api/ask is rate limited
+    python3 tools/fake_outrider.py --redirect         # every request answers 301 to https (a proxy)
+    python3 tools/fake_outrider.py --selftest         # check the stand-in's own answers, then exit
 """
 import argparse
 import hmac
 import json
 import secrets
+import threading
 import time
+import urllib.error
+import urllib.request
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -45,7 +54,9 @@ class Handler(BaseHTTPRequestHandler):
     # ---- helpers ----------------------------------------------------------------------------------------------
 
     def log_message(self, fmt, *args):
-        app = self.headers.get("X-Outrider-App", "-") if self.headers else "-"
+        # a request line that didn't parse (a TLS hello, a scanner) leaves no headers at all
+        headers = getattr(self, "headers", None)
+        app = headers.get("X-Outrider-App", "-") if headers else "-"
         print(f"{self.address_string()} app={app} auth={self._auth_kind()} {fmt % args}", flush=True)
 
     def _token(self):
@@ -69,7 +80,8 @@ class Handler(BaseHTTPRequestHandler):
         return self._token() in self.state.tokens
 
     def _needs_session(self):
-        return bool(self.state.args.password) and not self._loopback() and not self._signed_in()
+        loopback_ok = self._loopback() and not getattr(self.state, "strict", False)   # the selftest wants sessions
+        return bool(self.state.args.password) and not loopback_ok and not self._signed_in()
 
     def _send(self, status, body, ctype="application/json", headers=()):
         data = body.encode() if isinstance(body, str) else body
@@ -110,7 +122,18 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---- routes -----------------------------------------------------------------------------------------------
 
+    def _redirected(self):
+        if not self.state.args.redirect:
+            return False
+        self.send_response(301)
+        self.send_header("Location", f"https://{self.headers.get('Host', 'localhost')}{self.path}")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return True
+
     def do_GET(self):
+        if self._redirected():
+            return
         path = self.path.split("?")[0]
         args = self.state.args
         if path == "/api/version":
@@ -119,7 +142,8 @@ class Handler(BaseHTTPRequestHandler):
             if self._app_too_old():
                 return
             return self._json(200, {"outrider": args.outrider, "api": args.api, "min_app": args.min_app,
-                                    "password": bool(args.password), "signed_in": self._signed_in()})
+                                    "password": bool(args.password), "signed_in": self._signed_in(),
+                                    "game_pc": not args.server_mode})
         if path in ("/", "/tablet") and args.no_tablet:
             return self._send(404, "404: Not Found", "text/plain")
         if path not in OPEN_PATHS and self._needs_session():
@@ -137,6 +161,8 @@ class Handler(BaseHTTPRequestHandler):
         return self._error(404, "not_found", "No such route.")
 
     def do_POST(self):
+        if self._redirected():
+            return
         path = self.path.split("?")[0]
         args = self.state.args
         if path == "/api/auth/signin":
@@ -169,12 +195,17 @@ class Handler(BaseHTTPRequestHandler):
             text = body.get("text") if isinstance(body, dict) else None
             if not isinstance(text, str) or not text.strip() or len(text) > 500:
                 return self._error(400, "bad_request", "Send {\"text\": \"...\"} (up to 500 characters).")
+            if args.ask_429:
+                return self._error(429, "rate_limited", "Too many questions; wait a moment.", [("Retry-After", "10")])
+            if args.slow:
+                time.sleep(args.slow)
+            spoken = not args.unspoken
             t = text.lower()
             for words, command, answer in ASK_PHRASES:
                 if any(w in t for w in words):
-                    return self._json(200, {"answer": answer, "spoken": True, "matched": "fixed", "command": command})
+                    return self._json(200, {"answer": answer, "spoken": spoken, "matched": "fixed", "command": command})
             return self._json(200, {"answer": f"I don't know how to answer \"{text}\" yet.", "spoken": True,
-                                    "matched": "none", "command": None})
+                                    "matched": "none", "command": None} | {"spoken": spoken})
         if path == "/fake/expire":
             self.state.tokens.clear()
             return self._json(200, {"ok": True, "note": "every session dropped"})
@@ -262,7 +293,15 @@ def main():
     p.add_argument("--min-app", default="1.0.0")
     p.add_argument("--old", action="store_true", help="no /api/version (an Outrider from before the tablet)")
     p.add_argument("--no-tablet", action="store_true", help="no /tablet page")
+    p.add_argument("--server-mode", action="store_true", help="game_pc false: an Outrider away from the game PC")
+    p.add_argument("--slow", type=float, default=0, help="seconds /api/ask waits before answering")
+    p.add_argument("--unspoken", action="store_true", help='/api/ask answers with "spoken": false')
+    p.add_argument("--ask-429", action="store_true", help="/api/ask answers 429 rate_limited")
+    p.add_argument("--redirect", action="store_true", help="every request answers 301 to https")
+    p.add_argument("--selftest", action="store_true", help="check the stand-in on a spare loopback port, then exit")
     args = p.parse_args()
+    if args.selftest:
+        return selftest()
     if args.port == 8025:
         p.error("8025 is the real Outrider's port; pick another")
     Handler.state = State(args)
@@ -272,6 +311,90 @@ def main():
         srv.serve_forever()
     except KeyboardInterrupt:
         pass
+
+
+def selftest():
+    """Runs the stand-in on spare loopback ports and checks the contract shapes the app relies on."""
+    defaults = dict(host="127.0.0.1", port=0, password="test", outrider="t", api=1, min_app="1.0.0", old=False,
+                    no_tablet=False, server_mode=False, slow=0, unspoken=False, ask_429=False, redirect=False)
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k):
+            return None
+
+    def call(url, body=None, token=None):
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        req = urllib.request.Request(url, data=None if body is None else json.dumps(body).encode(), headers=headers)
+        try:
+            with urllib.request.build_opener(NoRedirect).open(req, timeout=10) as r:
+                return r.status, json.loads(r.read() or b"{}"), dict(r.headers)
+        except urllib.error.HTTPError as e:
+            raw = e.read()
+            return e.code, (json.loads(raw) if raw.startswith(b"{") else {}), dict(e.headers)
+
+    def run(overrides, checks):
+        state = State(argparse.Namespace(**(defaults | overrides)))
+        state.strict = True   # loopback needs a session here, like any other device
+        Handler.state = state
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            checks(f"http://127.0.0.1:{srv.server_address[1]}")
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+    def basic(base):
+        s, v, _ = call(base + "/api/version")
+        assert s == 200 and set(v) == {"outrider", "api", "min_app", "password", "signed_in", "game_pc"}, v
+        assert v["game_pc"] is True and v["password"] is True and v["signed_in"] is False, v
+        s, e, _ = call(base + "/api/auth/signin", {"password": "nope"})
+        assert s == 401 and e["code"] == "bad_password", e
+        s, ok, _ = call(base + "/api/auth/signin", {"password": "test"})
+        assert s == 200 and ok["token"], ok
+        s, a, _ = call(base + "/api/ask", {"text": "how much fuel", "source": "vespa"}, ok["token"])
+        assert s == 200 and set(a) == {"answer", "spoken", "matched", "command"} and a["spoken"] is True, a
+        s, e, _ = call(base + "/api/ask", {"text": "fuel"})
+        assert s == 401 and e["code"] == "signin_required", e
+
+    def modes(base):
+        s, v, _ = call(base + "/api/version")
+        assert v["game_pc"] is False, v
+        s, ok, _ = call(base + "/api/auth/signin", {"password": "test"})
+        s, e, h = call(base + "/api/ask", {"text": "fuel"}, ok["token"])
+        assert s == 429 and e["code"] == "rate_limited" and h.get("Retry-After") == "10", (s, e, h)
+
+    def unspoken(base):
+        s, ok, _ = call(base + "/api/auth/signin", {"password": "test"})
+        s, a, _ = call(base + "/api/ask", {"text": "what is the weather"}, ok["token"])
+        assert s == 200 and a["spoken"] is False and a["matched"] == "none", a
+
+    def garbage(base):
+        # a TLS hello (a browser trying https) must get a 400, not crash the logger, and the server must live on
+        import socket
+        host, port = base[7:].split(":")
+        with socket.create_connection((host, int(port)), timeout=5) as sock:
+            sock.sendall(b"\x16\x03\x01\x02\x00\x01\x00\x01\xfc\x03\x03 garbage\r\n\r\n")
+            reply = b""
+            while chunk := sock.recv(4096):
+                reply += chunk
+        # a request that looks like HTTP/0.9 gets the error page without a status line
+        assert b"400" in reply, reply[:200]
+        s, v, _ = call(base + "/api/version")
+        assert s == 200, s
+
+    def redirect(base):
+        s, _, h = call(base + "/api/version")
+        assert s == 301 and h["Location"].startswith("https://"), (s, h)
+
+    run({}, basic)
+    run({"server_mode": True, "ask_429": True}, modes)
+    run({"unspoken": True}, unspoken)
+    run({}, garbage)
+    run({"redirect": True}, redirect)
+    print("selftest: ok")
 
 
 if __name__ == "__main__":

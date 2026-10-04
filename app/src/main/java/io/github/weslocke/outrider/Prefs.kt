@@ -29,14 +29,10 @@ class Prefs(context: Context) {
 
     private fun tokens(): MutableMap<String, String> {
         val t = Servers.tokensFromJson(sp.getString(KEY_TOKENS, null))
-        // 1.0.0 kept one token: it belongs to the address saved alongside it
-        val legacy = sp.getString(KEY_TOKEN, null)
-        val origin = address?.origin
-        if (legacy != null) {
-            if (origin != null && origin !in t) t[origin] = legacy
-            sp.edit { remove(KEY_TOKEN).putString(KEY_TOKENS, Servers.tokensToJson(t)) }
-        }
-        return t
+        val legacy = sp.getString(KEY_TOKEN, null) ?: return t
+        val merged = Servers.migrateLegacyToken(t, legacy, address?.origin)
+        sp.edit { remove(KEY_TOKEN).putString(KEY_TOKENS, Servers.tokensToJson(merged)) }
+        return merged.toMutableMap()
     }
 
     /** The Outriders connected to before, most recent first (see [Servers]). */

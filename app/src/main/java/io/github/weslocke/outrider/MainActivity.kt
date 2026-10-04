@@ -246,30 +246,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun onVersion(address: ServerAddress, result: OutriderApi.Result<VersionInfo>) {
-        when (result) {
-            is OutriderApi.Result.Ok -> {
-                retryIndex = 0
-                val info = result.value
-                lastVersion = info
-                prefs.saved = Servers.remember(prefs.saved, address, info.gamePc)
-                when (val verdict = Versions.check(info, appVersion)) {
-                    is Versions.Verdict.UpdateApp -> showUpdate(app = true, verdict.reason)
-                    is Versions.Verdict.UpdateOutrider -> showUpdate(app = false, verdict.reason)
-                    Versions.Verdict.Ok ->
-                        if (info.password && !info.signedIn) {
-                            val had = prefs.token != null
-                            forgetSession()
-                            showSignIn(if (had) "This tablet was signed out: the password changed, or it was signed out on Outrider." else null)
-                        } else showPage()
-                }
+        if (result is OutriderApi.Result.Ok) {
+            retryIndex = 0
+            lastVersion = result.value
+            prefs.saved = Servers.remember(prefs.saved, address, result.value.gamePc)
+        }
+        when (val step = Flow.afterVersion(address, result, prefs.token != null, appVersion)) {
+            Flow.Step.Page -> showPage()
+            is Flow.Step.SignIn -> {
+                if (step.forgetToken) forgetSession()
+                showSignIn(step.note)
             }
-            is OutriderApi.Result.Failed -> when (result.error.status) {
-                404 -> showUpdate(app = false, "Outrider at ${address.display} has no tablet support yet (no /api/version).")
-                426 -> showUpdate(app = true, result.error.message)
-                else -> showNoLink(result.error.message)
-            }
-            is OutriderApi.Result.Unreachable -> showNoLink(result.reason)
-            is OutriderApi.Result.NotOutrider -> showNoLink("Something answered at ${address.display}, but it isn't Outrider.")
+            is Flow.Step.Update -> showUpdate(step.app, step.reason)
+            is Flow.Step.NoLink -> showNoLink(step.reason)
         }
     }
 

@@ -17,6 +17,10 @@ class OutriderApi(
     private val address: ServerAddress,
     private val token: String?,
     private val appVersion: String,
+    /** Overridable so tests needn't wait for the real timeouts. */
+    private val connectTimeoutMs: Int = CONNECT_TIMEOUT_MS,
+    private val readTimeoutMs: Int = READ_TIMEOUT_MS,
+    private val askTimeoutMs: Int = ASK_TIMEOUT_MS,
 ) {
     sealed class Result<out T> {
         data class Ok<T>(val value: T, val setCookies: List<String> = emptyList()) : Result<T>()
@@ -74,8 +78,8 @@ class OutriderApi(
         }
         try {
             conn.requestMethod = method
-            conn.connectTimeout = CONNECT_TIMEOUT_MS
-            conn.readTimeout = if (path == "/api/ask") ASK_TIMEOUT_MS else READ_TIMEOUT_MS
+            conn.connectTimeout = connectTimeoutMs
+            conn.readTimeout = if (path == "/api/ask") askTimeoutMs else readTimeoutMs
             conn.instanceFollowRedirects = false
             conn.useCaches = false
             conn.setRequestProperty("Accept", "application/json")
@@ -86,12 +90,18 @@ class OutriderApi(
                 val bytes = body.toByteArray(Charsets.UTF_8)
                 conn.doOutput = true
                 conn.setRequestProperty("Content-Type", "application/json")
-                conn.setFixedLengthStreamingMode(bytes.size)
+                // no fixed-length streaming: with it, some HttpURLConnections drop a 401's error body (the reason)
                 conn.outputStream.use { it.write(bytes) }
             }
             val status = conn.responseCode
+            if (status in 300..399) {
+                // never followed: a proxy or a wrong port sending the app elsewhere (https, a login page)
+                val where = conn.getHeaderField("Location")
+                return Response.Error(Result.Failed(ApiError(status, "redirect", redirectMessage(status, where))))
+            }
             val stream = if (status in 200..299) conn.inputStream else conn.errorStream
-            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+            val charset = charsetOf(conn.contentType)
+            val text = stream?.bufferedReader(charset)?.use { it.readText() } ?: ""
             if (status in 200..299) {
                 val cookies = conn.headerFields.entries
                     .filter { it.key != null && it.key.equals("Set-Cookie", ignoreCase = true) }
@@ -100,7 +110,6 @@ class OutriderApi(
             }
             val retryAfter = conn.getHeaderField("Retry-After")?.trim()?.toIntOrNull()
             val error = ApiError.parse(status, text, retryAfter)
-            // A non-JSON 200/3xx/5xx from something else on the port reads as "not Outrider" further up.
             return Response.Error(Result.Failed(error))
         } catch (e: IOException) {
             return Response.Error(Result.Unreachable(reason(e)))
@@ -110,6 +119,23 @@ class OutriderApi(
     }
 
     companion object {
+        /** The charset a Content-Type names ("application/json; charset=iso-8859-1"), UTF-8 when none or unknown. */
+        fun charsetOf(contentType: String?): java.nio.charset.Charset {
+            val name = contentType?.split(';')?.map { it.trim() }
+                ?.firstOrNull { it.startsWith("charset=", ignoreCase = true) }
+                ?.substringAfter('=')?.trim('"', ' ')
+            return try {
+                if (name.isNullOrEmpty()) Charsets.UTF_8 else java.nio.charset.Charset.forName(name)
+            } catch (e: IllegalArgumentException) {
+                Charsets.UTF_8
+            }
+        }
+
+        fun redirectMessage(status: Int, location: String?): String =
+            if (location.isNullOrBlank()) "Outrider's address answered with a redirect ($status), not Outrider itself."
+            else "That address answered with a redirect ($status) to $location: give the app Outrider's own plain " +
+                "http address (no proxy, no https)."
+
         /** Words for a person instead of Java's ("Failed to connect to /192.168.1.208:8025"). */
         fun reason(e: IOException): String = when (e) {
             is SocketTimeoutException -> "No answer: that computer may be off, asleep or blocking the port."
@@ -119,9 +145,9 @@ class OutriderApi(
             else -> e.message ?: e.javaClass.simpleName
         }
 
-        private const val CONNECT_TIMEOUT_MS = 4000
-        private const val READ_TIMEOUT_MS = 8000
+        const val CONNECT_TIMEOUT_MS = 4000
+        const val READ_TIMEOUT_MS = 8000
         /** /api/ask may wait on the optional AI layer, which has its own (shorter) timeout on the PC. */
-        private const val ASK_TIMEOUT_MS = 45000
+        const val ASK_TIMEOUT_MS = 45000
     }
 }

@@ -32,6 +32,13 @@ class WakePhrasesTest {
         assertNotNull(WakePhrases.problem(bpe, tokens, "a".repeat(30)))
     }
 
+    @Test fun placeholderKeywordFileMatchesTheModel() {
+        // the library needs a keywords file; it must still spell HEY VESPA in this model's pieces after a model bump
+        val line = File("src/main/assets/kws_default.txt").readText().trim()
+        assertEquals(bpe.encode("HEY VESPA").joinToString(" ") + " @HEY_VESPA", line)
+        assert(bpe.known(line.substringBefore(" @").split(' '), tokens))
+    }
+
     @Test fun sensitivityCycles() {
         assertEquals(WakePhrases.Sensitivity.HIGH, WakePhrases.Sensitivity.NORMAL.next())
         assertEquals(WakePhrases.Sensitivity.LOW, WakePhrases.Sensitivity.HIGH.next())
