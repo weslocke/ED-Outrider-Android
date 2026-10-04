@@ -170,6 +170,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)   // so getReferrer() describes this intent, not the launch one
         debugAsk(intent)
     }
 
@@ -181,7 +182,10 @@ class MainActivity : ComponentActivity() {
     private fun debugAsk(intent: Intent?) {
         val text = intent?.getStringExtra("debug_ask") ?: return
         intent.removeExtra("debug_ask")
-        if (debuggable) main.postDelayed({ ask(text) }, 1500)
+        // adb only: another app on the tablet must not be able to put questions to Outrider through this
+        val fromShell = referrer?.host == "com.android.shell"
+        if (!fromShell) Log.w(TAG, "debug_ask ignored: it came from $referrer, not adb")
+        if (debuggable && fromShell) main.postDelayed({ ask(text) }, 1500)
     }
 
     override fun onResume() {
@@ -451,6 +455,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private inner class PageClient(private val address: ServerAddress) : WebViewClient() {
+        /**
+         * Nothing but the configured Outrider is fetched: images, scripts, styles, fetch() and XHR to anywhere else
+         * get a 403 (Outrider's page is self-contained; links elsewhere are navigations and open in the browser).
+         * WebSockets don't pass through here; the page opens none.
+         */
+        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+            val url = request.url.toString()
+            if (address.isSameOrigin(url) || url.startsWith("data:") || url.startsWith("blob:") || url.startsWith("about:")) return null
+            if (request.isForMainFrame) return null   // navigations are decided by shouldOverrideUrlLoading
+            Log.w(TAG, "blocked a request outside Outrider: $url")
+            return WebResourceResponse("text/plain", "utf-8", 403, "Forbidden", emptyMap(), java.io.ByteArrayInputStream(ByteArray(0)))
+        }
+
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val url = request.url
             if (address.isSameOrigin(url.toString())) return false

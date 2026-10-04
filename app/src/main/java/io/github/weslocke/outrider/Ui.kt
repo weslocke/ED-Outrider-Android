@@ -182,6 +182,10 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
             cornerRadius = dp(6f)
         }
         setPadding(16.dp(), 8.dp(), 16.dp(), 8.dp())
+        if (f.password) {
+            // the app never keeps the password: neither should a password manager's "Save password?"
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+        }
         // No suggestions: Samsung's keyboard otherwise "predicts" into addresses (192.168.1.2 -> "10th").
         inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
             if (f.password) InputType.TYPE_TEXT_VARIATION_PASSWORD else InputType.TYPE_TEXT_VARIATION_URI

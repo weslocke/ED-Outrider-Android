@@ -26,6 +26,20 @@ class ServerAddressTest {
         assertTrue(invalid("[fe80::1"))
     }
 
+    @Test fun hostsAreCanonical() {
+        // what the WebView hands back is lower case and RFC 5952-compressed: the typed address must match it
+        assertEquals(ServerAddress("fd00::20", 8025), ok("[fd00:0:0:0:0:0:0:20]:8025"))
+        assertEquals(ServerAddress("fe80::1", 8025), ok("[FE80:0000::0001]"))
+        assertEquals(ServerAddress("2001:db8::1:0:0:1", 8025), ok("[2001:db8:0:0:1:0:0:1]"))   // the first longest run
+        assertEquals(ServerAddress("::ffff:c0a8:1d0", 8025), ok("[::ffff:192.168.1.208]"))
+        assertEquals(ServerAddress("gamepc.local", 8025), ok("GamePC.Local"))
+        assertEquals(ServerAddress("192.168.1.208", 8025), ok("192.168.1.208."))
+    }
+
+    @Test fun zoneIdsAreRefused() {
+        assertTrue(invalid("[fe80::1%wlan0]:8025"))
+    }
+
     @Test fun originAndDisplay() {
         assertEquals("http://192.168.1.208:8025", ServerAddress("192.168.1.208", 8025).origin)
         assertEquals("http://[fe80::1]:8100", ServerAddress("fe80::1", 8100).origin)
@@ -46,5 +60,20 @@ class ServerAddressTest {
         assertFalse(a.isSameOrigin("javascript:alert(1)"))
         assertFalse(a.isSameOrigin("not a url"))
         assertTrue(ServerAddress("fe80::1", 8025).isSameOrigin("http://[fe80::1]:8025/x"))
+        assertTrue(ServerAddress("fd00::20", 8025).isSameOrigin("http://[FD00:0:0::20]:8025/x"))
+        assertTrue(ServerAddress("gamepc.local", 8025).isSameOrigin("http://GamePC.local:8025/tablet"))
+    }
+
+    @Test fun sameOriginTakesWhatJavaUriRefuses() {
+        val a = ServerAddress("192.168.1.208", 8025)
+        for (path in listOf("/a|b", "/x^y", "/s?q={1}", "/q?x=`y`", "/p%zz"))
+            assertTrue(path, a.isSameOrigin("http://192.168.1.208:8025$path"))
+    }
+
+    @Test fun userInfoTricksAreForeign() {
+        val a = ServerAddress("192.168.1.208", 8025)
+        assertFalse(a.isSameOrigin("http://192.168.1.208:8025@evil.example/"))
+        assertFalse(a.isSameOrigin("http://evil.example\\@192.168.1.208:8025/"))
+        assertTrue(a.isSameOrigin("http://user@192.168.1.208:8025/"))
     }
 }

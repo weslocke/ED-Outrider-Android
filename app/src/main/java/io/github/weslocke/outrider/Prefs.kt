@@ -10,7 +10,7 @@ class Prefs(context: Context) {
     var address: ServerAddress?
         get() {
             val host = sp.getString(KEY_HOST, null) ?: return null
-            return ServerAddress(host, sp.getInt(KEY_PORT, ServerAddress.DEFAULT_PORT))
+            return ServerAddress(ServerAddress.canonicalHost(host) ?: host, sp.getInt(KEY_PORT, ServerAddress.DEFAULT_PORT))
         }
         set(value) = sp.edit {
             if (value == null) remove(KEY_HOST).remove(KEY_PORT)

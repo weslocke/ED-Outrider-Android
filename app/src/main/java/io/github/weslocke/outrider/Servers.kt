@@ -49,8 +49,10 @@ object Servers {
             val o = a.optJSONObject(i) ?: continue
             val host = o.optString("host", "")
             val port = o.optInt("port", 0)
-            if (host.isEmpty() || port !in 1..65535) continue
-            out += SavedServer(ServerAddress(host, port), if (o.has("game_pc")) o.optBoolean("game_pc") else null)
+            // canonical, so "GamePC.local" saved by an older version matches "gamepc.local" typed now
+            val canonical = ServerAddress.canonicalHost(host)
+            if (canonical == null || port !in 1..65535) continue
+            out += SavedServer(ServerAddress(canonical, port), if (o.has("game_pc")) o.optBoolean("game_pc") else null)
         }
         return out.distinctBy { it.address }.take(MAX)
     }
