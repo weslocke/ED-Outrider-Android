@@ -49,22 +49,20 @@ the tablet sleeps, and listens for your voice.
 | ⬇️ **Exports** | Outrider's CSV and JSON exports save to the tablet's Downloads. |
 | 🔀 **More than one Outrider** | Remembers the Outriders it has used (say one on the game PC and one on a server) and switches between them from the Back menu, each staying signed in. |
 
-<p align="center">
-  <img src="docs/images/tablet-babylon5.webp" alt="The Babylon 5 theme: Nearby, the ship controls, and a spoken status report in the footer" width="440">
-  <img src="docs/images/tablet-lcars-search.webp" alt="Search in the LCARS theme" width="440">
-</p>
+### Themes
 
 <p align="center">
-  <img src="docs/images/tablet-narn.webp" alt="The Narn theme: Here, with the system's bodies drawn from scan data" width="290">
-  <img src="docs/images/tablet-sith.webp" alt="The Sith theme: the galaxy map" width="290">
-  <img src="docs/images/tablet-alliance.webp" alt="The Rebel Alliance theme: Nearby" width="290">
+  <img src="docs/images/themes-carousel.webp" alt="The seven themes in turn: Elite, Babylon 5, LCARS, Narn, Sith, Alliance and Dark" width="900">
 </p>
 
-<p align="center">
-  <img src="docs/images/tablet-dark.webp" alt="The modern Dark theme: Nearby with line icons and switches" width="600">
-</p>
-
-<p align="center"><sub>Seven themes: Elite, Babylon 5 (Earthforce), LCARS, Narn, Sith, Rebel Alliance, and a modern Dark mode.</sub></p>
+<p align="center"><sub>Seven themes, sliding past in turn. Full size:
+<a href="docs/images/tablet-elite.webp">Elite</a> ·
+<a href="docs/images/tablet-babylon5.webp">Babylon 5</a> ·
+<a href="docs/images/tablet-lcars-search.webp">LCARS</a> ·
+<a href="docs/images/tablet-narn.webp">Narn</a> ·
+<a href="docs/images/tablet-sith.webp">Sith</a> ·
+<a href="docs/images/tablet-alliance.webp">Alliance</a> ·
+<a href="docs/images/tablet-dark.webp">Dark</a></sub></p>
 
 ## Getting started
 
@@ -155,8 +153,8 @@ SHA-256 d7:e6:1a:4d:45:fb:ba:27:7e:7e:b1:ca:e6:b6:26:3d:ed:82:09:74:ce:94:65:a6:
 You need the Android SDK (platform 36), pointed to by `ANDROID_HOME` or a `local.properties` file
 (`sdk.dir=/path/to/Android/Sdk`), and a Java runtime (17 or newer) on the `PATH` to start the Gradle wrapper. Nothing
 else: the wrapper fetches Gradle, and a JDK 21 into `~/.gradle/jdks` if the PC has none (a Java runtime alone can't
-compile). The first build also downloads the wake
-word's engine and model into `app/voice/` (about 55 MB, checked against pinned SHA-256s; `./gradlew fetchVoice`).
+compile). The first build also downloads the wake word's engine and model into `app/voice/` (about 55 MB, checked
+against pinned SHA-256s; `./gradlew fetchVoice`).
 
 ```bash
 ./gradlew testDebugUnitTest      # unit tests

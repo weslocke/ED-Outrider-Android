@@ -48,7 +48,9 @@ Elsewhere:
   `--slow N`, `--unspoken`, `--ask-429`, `--redirect` for the awkward cases, `--theme NAME` for the app's screens, `--selftest` to check itself.
 - `design/launcher-icon.svg`: the icon's source; `app/src/main/res/drawable/ic_launcher_*.xml` are hand-converted
   from it (keep them in step).
-- `docs/images/`: README images.
+- `docs/images/`: README images. `themes-carousel.webp` is built from the `tablet-*.webp` screenshots by
+  `python3 tools/theme_carousel.py` (Pillow): re-run it after changing one. GitHub shrinks wide tables and strips
+  scripts, so an animated image is the only way a README can page through screenshots.
 
 ## Rules
 
