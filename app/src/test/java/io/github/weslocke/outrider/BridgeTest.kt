@@ -35,6 +35,7 @@ class BridgeTest {
         assertEquals("elite", AppTheme.named("elite").name)
         assertEquals("babylon5", AppTheme.named("BABYLON5").name)
         assertEquals(AppTheme.Frame.CHAMFER, AppTheme.named("elite").frame)
+        for (name in listOf("narn", "sith", "alliance")) assertEquals(name, AppTheme.named(name).name)
         // unknown names (a newer page's theme) and no theme at all: LCARS
         assertEquals("lcars", AppTheme.named("farscape").name)
         assertEquals("lcars", AppTheme.named(null).name)

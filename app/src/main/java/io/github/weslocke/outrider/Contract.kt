@@ -42,7 +42,7 @@ data class VersionInfo(
     }
 }
 
-/** `POST /api/ask` (phase 6). `matched`: "fixed", "ai" or "none"; `spoken`: whether the PC said it aloud. */
+/** `POST /api/ask` (phase 6). `matched`: "fixed", "ai" or "none"; `spoken`: whether Outrider said it aloud. */
 data class AskAnswer(val answer: String, val spoken: Boolean, val matched: String, val command: String?) {
     companion object {
         /** The longest question the contract accepts. */

@@ -20,20 +20,20 @@
 ## What this is
 
 **[ED Outrider](https://github.com/weslocke/ED-Outrider)** is an Elite Dangerous exploration assistant that runs on
-your gaming PC. It reads your game journals as you play and keeps a live page up to date with what an explorer keeps
+your own machines: on the gaming PC, or on another computer on your network. It reads your game journals as you play and keeps a live page up to date with what an explorer keeps
 alt-tabbing for: who has been to the systems around you, what's in the one you're in, what your unsold data is worth,
 your bio samples and first discoveries, the Neutron Highway route, and spoken alerts.
 
 **This app is a client for it.** It puts Outrider's tablet layout on an Android tablet beside your HOTAS, so the game
-keeps the whole monitor. Outrider still does all the work on the PC; the app is the cockpit display, and it adds what
+keeps the whole monitor. Outrider still does all the work, wherever it runs; the app is the cockpit display, and it adds what
 a browser tab can't: a full-screen landscape window that keeps the screen on, signs in by itself, reconnects after
 the tablet sleeps, and listens for your voice.
 
-> You need ED Outrider running on your PC: this app does nothing on its own. Get it at
+> You need ED Outrider running on a computer on your network: this app does nothing on its own. Get it at
 > **[github.com/weslocke/ED-Outrider](https://github.com/weslocke/ED-Outrider)**.
 
 <p align="center">
-  <img src="docs/images/tablet-babylon5.webp" alt="The tablet layout in the Babylon 5 theme: Nearby on the left, the ship controls on the right, a spoken status report in the footer" width="900">
+  <img src="docs/images/tablet-elite.webp" alt="The tablet layout in the Elite theme: Here, with the system's bodies drawn from scan data, and the ship controls on the right" width="900">
 </p>
 
 ## Features
@@ -41,24 +41,33 @@ the tablet sleeps, and listens for your voice.
 | | |
 |---|---|
 | 🖥️ **Cockpit display** | Outrider's tablet layout full screen, landscape, screen kept on: Now, Nearby, Here, Samples, Bookmarks, Search, Map, Highway, History, Log, Materials and My firsts. |
-| 🕹️ **Ship controls** | A column of game buttons (landing gear, cargo scoop, lights, silent running, ...) that press your own key bindings on the PC, lit from the game's own status. Changes with the vehicle: ship, SRV, fighter, on foot. *(Outrider on Linux.)* |
-| 🎙️ **"Hey Vespa"** | Say *"Hey / OK / Hello Vespa"*, then ask: *status report*, *fuel*, *unsold*, *next jump*, *what's left here*, *nearest unvisited*, *hush*. Outrider answers out loud on the PC. The wake word is yours to change. |
-| 🎨 **Themes** | LCARS, Elite (cockpit HUD) and Babylon 5 (Earthforce console), picked in the page's settings; the app's own screens follow. |
+| 🕹️ **Ship controls** | A column of game buttons (landing gear, cargo scoop, lights, silent running, ...) that press your own key bindings in the game, lit from the game's own status. Changes with the vehicle: ship, SRV, fighter, on foot. *(Needs Outrider on the gaming PC, on Linux.)* |
+| 🎙️ **"Hey Vespa"** | Say *"Hey / OK / Hello Vespa"*, then ask: *status report*, *fuel*, *unsold*, *next jump*, *what's left here*, *nearest unvisited*, *hush*. Outrider answers out loud in its own voice. The wake word is yours to change. |
+| 🎨 **Themes** | LCARS, Elite (cockpit HUD), Babylon 5 (Earthforce and Narn) and Star Wars (Sith and Alliance), picked in the page's settings; the app's own screens follow. |
 | 🔒 **Signs in once** | When Outrider asks devices on the network for a password, the app signs in and stays signed in until it changes. |
 | 🔁 **Reconnects** | Says plainly when Outrider can't be reached, and picks up again by itself when it's back. |
 | ⬇️ **Exports** | Outrider's CSV and JSON exports save to the tablet's Downloads. |
 
 <p align="center">
+  <img src="docs/images/tablet-babylon5.webp" alt="The Babylon 5 theme: Nearby, the ship controls, and a spoken status report in the footer" width="440">
   <img src="docs/images/tablet-lcars-search.webp" alt="Search in the LCARS theme" width="440">
-  <img src="docs/images/app-voice.webp" alt="The app's Voice settings: the wake word, on or off, its sensitivity" width="440">
 </p>
+
+<p align="center">
+  <img src="docs/images/tablet-narn.webp" alt="The Narn theme: Here, with the system's bodies drawn from scan data" width="290">
+  <img src="docs/images/tablet-sith.webp" alt="The Sith theme: the galaxy map" width="290">
+  <img src="docs/images/tablet-alliance.webp" alt="The Rebel Alliance theme: Nearby" width="290">
+</p>
+
+<p align="center"><sub>Six themes: Elite, Babylon 5 (Earthforce), LCARS, and Narn, Sith and Rebel Alliance.</sub></p>
 
 ## Getting started
 
 **You need**
 
-- [ED Outrider](https://github.com/weslocke/ED-Outrider) on the gaming PC, a version with the tablet layout,
-  listening on your network: `[server] host = "0.0.0.0"` in `ed_outrider.toml` (not only `127.0.0.1`).
+- [ED Outrider](https://github.com/weslocke/ED-Outrider), a version with the tablet layout, running on a computer on
+  your network (the gaming PC, or another machine such as a home server) and listening on the network:
+  `[server] host = "0.0.0.0"` in `ed_outrider.toml` (not only `127.0.0.1`).
 - An Android tablet with Android 8 or newer on the same network. It's built for an 11" landscape screen (tested on a
   Galaxy Tab A11+).
 
@@ -70,7 +79,7 @@ that source when Android asks), or from a PC with the tablet on USB:
 adb install -r ED-Outrider-1.0.0.apk
 ```
 
-**First start.** Enter your PC's address, e.g. `192.168.1.20` (add `:port` if Outrider doesn't use 8025). If Outrider
+**First start.** Enter the address of the computer running Outrider, e.g. `192.168.1.20` (add `:port` if Outrider doesn't use 8025). If Outrider
 has a `[server] password`, the app asks for it once.
 
 **Using it.** The tablet layout is Outrider's: tap the groups on the left, the pages under them, rows for details.
@@ -79,11 +88,15 @@ Press **Back** for the app's own menu: back to Outrider, reload, ask, voice, set
 ## Voice
 
 Say **"Hey Vespa"**, **"OK Vespa"** or **"Hello Vespa"**, wait for **LISTENING**, then ask your question. Outrider
-answers out loud on the PC in its own voice, and the answer shows on the tablet too. A small **◉ VESPA** in the
+answers out loud in its own voice, and the answer shows on the tablet too. A small **◉ VESPA** in the
 bottom-left corner shows that the tablet is listening for the wake word. You can also tap **Ask** (in the page's
 footer or the Back menu) instead of saying it.
 
 In **Back → Voice**:
+
+<p align="center">
+  <img src="docs/images/app-voice.webp" alt="The app's Voice settings: the wake word, on or off, its sensitivity" width="600">
+</p>
 
 - **the wake word**: any word in plain letters, *Vespa* by default (the prefixes OK, Okay, Hey and Hello stay);
 - **on or off**;
@@ -94,7 +107,7 @@ so with loud game audio it can miss: raise the sensitivity, or tap Ask.
 
 ## Privacy and security
 
-- The app talks **only to the PC address you give it**, over plain HTTP on your own network, and loads nothing else
+- The app talks **only to the Outrider address you give it**, over plain HTTP on your own network, and loads nothing else
   (other links open in the browser).
 - The **wake word** is listened for on the tablet itself, only while the app is on screen. No audio is kept or sent
   for it.
@@ -174,7 +187,7 @@ ignore fields they don't know.
 | `GET /api/version` | `{"outrider", "api", "min_app", "password", "signed_in"}`, open without a session |
 | `POST /api/auth/signin` | `{"password"}` → `{"ok", "token"}` and a session cookie |
 | `POST /api/auth/signout` | ends the session |
-| `POST /api/ask` | `{"text", "source": "vespa"}` → `{"answer", "spoken", "matched", "command"}` (the PC speaks the answer) |
+| `POST /api/ask` | `{"text", "source": "vespa"}` → `{"answer", "spoken", "matched", "command"}` (Outrider speaks the answer) |
 | Errors | `{"error": "<words>", "code": "<code>"}`: `bad_password`, `rate_limited` (+ `Retry-After`), `signin_required`, `app_too_old` (426), ... |
 | Headers | the app sends `X-Outrider-App: <version>` and `Authorization: Bearer <token>` on its own calls |
 
@@ -187,7 +200,7 @@ browser. The bridge exists only on the configured Outrider's pages.
 | `appVersion()` | e.g. `"1.0.0"` |
 | `haptic(ms)` | a short vibration, up to 100 ms (nothing on tablets without a motor) |
 | `signInRequired()` | the session is gone: the app signs in again and reloads the page |
-| `setTheme(name)` | `"lcars"`, `"elite"` or `"babylon5"`, so the app's own screens match the page |
+| `setTheme(name)` | `"lcars"`, `"elite"`, `"babylon5"`, `"narn"`, `"sith"` or `"alliance"`, so the app's own screens match the page |
 | `listen()` | listen for one spoken question, send it to `POST /api/ask` and show the answer |
 </details>
 
@@ -197,7 +210,7 @@ browser. The bridge exists only on the configured Outrider's pages.
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) and its English keyword-spotting model (Apache-2.0), for the
   wake word.
 - Elite Dangerous is © Frontier Developments plc. This is an unofficial fan project, not affiliated with or endorsed
-  by Frontier. The themes are inspired by Star Trek's LCARS and Babylon 5 and use no assets from either.
+  by Frontier. The themes are inspired by Star Trek's LCARS, Babylon 5 and Star Wars and use no assets from any of them.
 
 ## Licence
 

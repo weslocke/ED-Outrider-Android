@@ -258,7 +258,7 @@ class MainActivity : ComponentActivity() {
                         if (info.password && !info.signedIn) {
                             val had = prefs.token != null
                             forgetSession()
-                            showSignIn(if (had) "This tablet was signed out: the password changed, or it was signed out on the PC." else null)
+                            showSignIn(if (had) "This tablet was signed out: the password changed, or it was signed out on Outrider." else null)
                         } else showPage()
                 }
             }
@@ -542,8 +542,8 @@ class MainActivity : ComponentActivity() {
         val buttons = mutableListOf(Screen.Button("Connect") { save() })
         if (current != null) buttons += Screen.Button("Cancel", primary = false) { connect() }
         s = show(State.SETUP, Screen.Spec(
-            title = "PC address",
-            body = "The address of the PC running Outrider on your network, e.g. 192.168.1.20. " +
+            title = "Outrider's address",
+            body = "The address of the computer running Outrider on your network (your gaming PC, or another machine), e.g. 192.168.1.20. " +
                 "Outrider uses port ${ServerAddress.DEFAULT_PORT}; for another port add it: 192.168.1.20:8100.",
             field = Screen.Field(hint = "192.168.1.20", text = current?.display ?: "", onDone = { save() }),
             buttons = buttons,
@@ -553,7 +553,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun signInBody(address: ServerAddress) =
-        "Outrider at ${address.display} asks for a password: the one set as [server] password in ed_outrider.toml on the PC. " +
+        "Outrider at ${address.display} asks for a password: the one set as [server] password in Outrider's ed_outrider.toml. " +
             "This tablet stays signed in until that password changes."
 
     private fun showSignIn(note: String?) {
@@ -578,7 +578,7 @@ class MainActivity : ComponentActivity() {
     private fun showUpdate(app: Boolean, reason: String) {
         show(State.UPDATE, Screen.Spec(
             title = if (app) "Update the app" else "Update Outrider",
-            body = reason + "\n\n" + if (app) "Install the newest ED Outrider APK on this tablet." else "Update Outrider on the PC and restart it.",
+            body = reason + "\n\n" + if (app) "Install the newest ED Outrider APK on this tablet." else "Update Outrider and restart it.",
             buttons = listOf(
                 Screen.Button("Try again") { connect() },
                 Screen.Button("Settings", primary = false) { showSetup() },
@@ -589,7 +589,7 @@ class MainActivity : ComponentActivity() {
 
     private fun noLinkBody(address: ServerAddress, next: String) =
         "Outrider isn't answering at ${address.display}.\n$noLinkReason\n\n" +
-            "Check that Outrider is running on the PC, that this tablet is on the same network, and that Outrider " +
+            "Check that Outrider is running, that this tablet is on the same network, and that Outrider " +
             "listens on the network (host 0.0.0.0), not only on 127.0.0.1.\n\n$next"
 
     private fun showNoLink(reason: String) {
@@ -769,7 +769,7 @@ class MainActivity : ComponentActivity() {
             title = "Voice",
             body = "Say OK, Hey or Hello and the wake word, wait for LISTENING, then ask: a status report, fuel, " +
                 "unsold, the next jump, what's left here, the nearest unvisited system, hush or unhush. Outrider " +
-                "answers out loud on the PC.\n\nThe tablet listens for the wake word only while ED Outrider is on " +
+                "answers out loud in its own voice.\n\nThe tablet listens for the wake word only while ED Outrider is on " +
                 "screen, on the tablet itself; only the question you ask after it goes on to be understood." + mic,
             field = Screen.Field(hint = WakePhrases.DEFAULT_WORD, text = word, onDone = { save() }),
             buttons = listOf(

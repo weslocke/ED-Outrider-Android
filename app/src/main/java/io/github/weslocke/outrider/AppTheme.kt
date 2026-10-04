@@ -74,7 +74,49 @@ data class AppTheme(
             frame = Frame.CONSOLE,
         )
 
-        private val ALL = listOf(LCARS, ELITE, BABYLON5).associateBy { it.name }
+        /** Babylon 5's Narn Regime: rust red and ochre on dark red-brown, angular. */
+        val NARN = AppTheme(
+            name = "narn",
+            background = 0xFF120806.toInt(),
+            primary = 0xFFB83A1E.toInt(),
+            secondary = 0xFF7A2A18.toInt(),
+            accent = 0xFFE0A040.toInt(),
+            text = 0xFFE8C9A0.toInt(),
+            onFill = 0xFF120806.toInt(),
+            alert = 0xFFFFC24B.toInt(),
+            cornerRadiusDp = 2f,
+            frame = Frame.CHAMFER,
+        )
+
+        /** Star Wars, Imperial / Sith: crimson on black, steel-white text, hard edges. */
+        val SITH = AppTheme(
+            name = "sith",
+            background = 0xFF000000.toInt(),
+            primary = 0xFFD0021B.toInt(),
+            secondary = 0xFF5A0A12.toInt(),
+            accent = 0xFFE8E8E8.toInt(),
+            text = 0xFFC9CED6.toInt(),
+            onFill = 0xFF000000.toInt(),
+            alert = 0xFFFFB000.toInt(),
+            cornerRadiusDp = 0f,
+            frame = Frame.CHAMFER,
+        )
+
+        /** Star Wars, Rebel Alliance: cockpit orange and sand on blue-black, blue for active. */
+        val ALLIANCE = AppTheme(
+            name = "alliance",
+            background = 0xFF0B0F14.toInt(),
+            primary = 0xFFF28C28.toInt(),
+            secondary = 0xFFC9B98F.toInt(),
+            accent = 0xFF4FA3D9.toInt(),
+            text = 0xFFF2EBDD.toInt(),
+            onFill = 0xFF0B0F14.toInt(),
+            alert = 0xFFE8453C.toInt(),
+            cornerRadiusDp = 6f,
+            frame = Frame.CONSOLE,
+        )
+
+        private val ALL = listOf(LCARS, ELITE, BABYLON5, NARN, SITH, ALLIANCE).associateBy { it.name }
 
         fun named(name: String?): AppTheme = ALL[name?.lowercase()] ?: LCARS
     }

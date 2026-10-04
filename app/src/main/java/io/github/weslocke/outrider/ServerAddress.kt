@@ -46,7 +46,7 @@ data class ServerAddress(val host: String, val port: Int) {
          */
         fun parse(input: String): Parsed {
             var s = input.trim()
-            if (s.isEmpty()) return Parsed.Invalid("Enter the PC's address, e.g. 192.168.1.20")
+            if (s.isEmpty()) return Parsed.Invalid("Enter the address of the computer running Outrider, e.g. 192.168.1.20")
             if (s.startsWith("https://", ignoreCase = true))
                 return Parsed.Invalid("Outrider uses plain http on the LAN, not https")
             if (s.startsWith("http://", ignoreCase = true)) s = s.substring(7)

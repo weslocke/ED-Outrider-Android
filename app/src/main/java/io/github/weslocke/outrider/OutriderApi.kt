@@ -112,10 +112,10 @@ class OutriderApi(
     companion object {
         /** Words for a person instead of Java's ("Failed to connect to /192.168.1.208:8025"). */
         fun reason(e: IOException): String = when (e) {
-            is SocketTimeoutException -> "No answer: the PC may be off, asleep or blocking the port."
+            is SocketTimeoutException -> "No answer: that computer may be off, asleep or blocking the port."
             is ConnectException -> "Nothing answered on that port: Outrider may not be running, or listens only on 127.0.0.1."
-            is NoRouteToHostException -> "The PC can't be reached from this network."
-            is UnknownHostException -> "No PC by that name on this network."
+            is NoRouteToHostException -> "That computer can't be reached from this network."
+            is UnknownHostException -> "No computer by that name on this network."
             else -> e.message ?: e.javaClass.simpleName
         }
 
