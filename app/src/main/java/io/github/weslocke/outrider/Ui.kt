@@ -74,7 +74,7 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
     private val bodyView: TextView
     private val errorView: TextView
     private lateinit var choicesLabel: TextView
-    private lateinit var choicesRow: LinearLayout
+    private lateinit var choicesRow: FlowRow
 
     init {
         val frame = FrameLayout(context).apply { background = FrameDrawable(theme, dp(1f)) }
@@ -104,16 +104,10 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
         column.addView(errorView)
 
         if (spec.buttons.isNotEmpty()) {
-            val row = LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(0, 32.dp(), 0, 0)
-            }
-            spec.buttons.forEachIndexed { i, b ->
-                row.addView(button(context, b), LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, 64.dp(),
-                ).apply { if (i > 0) leftMargin = 16.dp() })
-            }
-            column.addView(row)
+            // wraps onto a second line rather than squeezing the last buttons
+            val row = FlowRow(context, 16.dp(), 16.dp()).apply { setPadding(0, 32.dp(), 0, 0) }
+            for (b in spec.buttons) row.addView(button(context, b), ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 64.dp()))
+            column.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
 
         // the saved-Outrider row: always made, hidden while empty, so [setChoices] can refresh it in place
@@ -121,11 +115,8 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
             setPadding(0, 28.dp(), 0, 0)
         }
         column.addView(choicesLabel)
-        choicesRow = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 12.dp(), 0, 0)
-        }
-        column.addView(choicesRow)
+        choicesRow = FlowRow(context, 16.dp(), 12.dp()).apply { setPadding(0, 12.dp(), 0, 0) }
+        column.addView(choicesRow, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         setChoices(spec.choices, hasLabel = spec.choicesLabel != null)
 
         spec.footer?.let {
@@ -140,9 +131,13 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
     /** Replaces the saved-Outrider buttons (e.g. after one is forgotten) without rebuilding the screen. */
     fun setChoices(choices: List<Button>, hasLabel: Boolean = choicesLabel.text.isNotEmpty()) {
         choicesRow.removeAllViews()
-        choices.forEachIndexed { i, b ->
-            choicesRow.addView(button(context, b), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 56.dp())
-                .apply { if (i > 0) leftMargin = 16.dp() })
+        for (b in choices) {
+            choicesRow.addView(button(context, b).apply {
+                // long addresses end in "…" rather than pushing the others off the row
+                maxWidth = 520.dp()
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+            }, ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 56.dp()))
         }
         val show = choices.isNotEmpty()
         choicesRow.visibility = if (show) View.VISIBLE else View.GONE

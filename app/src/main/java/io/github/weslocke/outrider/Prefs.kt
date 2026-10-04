@@ -76,6 +76,21 @@ class Prefs(context: Context) {
         get() = WakePhrases.Sensitivity.entries.firstOrNull { it.name == sp.getString(KEY_WAKE_SENS, null) } ?: WakePhrases.Sensitivity.NORMAL
         set(value) = sp.edit { putString(KEY_WAKE_SENS, value.name) }
 
+    /** A short tone when the wake word is heard and the tablet starts listening for the question. */
+    var wakeTone: Boolean
+        get() = sp.getBoolean(KEY_WAKE_TONE, true)
+        set(value) = sp.edit { putBoolean(KEY_WAKE_TONE, value) }
+
+    /** Read answers aloud on the tablet when Outrider couldn't speak them on the PC ("spoken": false). */
+    var speakHere: Boolean
+        get() = sp.getBoolean(KEY_SPEAK_HERE, true)
+        set(value) = sp.edit { putBoolean(KEY_SPEAK_HERE, value) }
+
+    /** A headset or Bluetooth play/pause button starts (or cancels) a question. Off: it's usually for music. */
+    var mediaButton: Boolean
+        get() = sp.getBoolean(KEY_MEDIA_BUTTON, false)
+        set(value) = sp.edit { putBoolean(KEY_MEDIA_BUTTON, value) }
+
     /** The microphone has been asked for once at start (a refusal isn't asked again; the Voice screen can). */
     var micAsked: Boolean
         get() = sp.getBoolean(KEY_MIC_ASKED, false)
@@ -86,6 +101,9 @@ class Prefs(context: Context) {
         const val KEY_WAKE_WORD = "wake_word"
         const val KEY_WAKE_SENS = "wake_sensitivity"
         const val KEY_MIC_ASKED = "mic_asked"
+        const val KEY_WAKE_TONE = "wake_tone"
+        const val KEY_SPEAK_HERE = "speak_here"
+        const val KEY_MEDIA_BUTTON = "media_button"
         const val KEY_HOST = "host"
         const val KEY_PORT = "port"
         const val KEY_TOKEN = "token"   // 1.0.0's single token, moved into KEY_TOKENS on first read

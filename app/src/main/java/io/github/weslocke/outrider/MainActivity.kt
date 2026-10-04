@@ -101,6 +101,14 @@ class MainActivity : ComponentActivity() {
     private val hideOverlay = Runnable { voiceOverlay.visibility = View.GONE }
     /** True from the wake word or Ask until the answer is shown: the wake word waits meanwhile. */
     private var asking = false
+    /** Why the wake word couldn't start (model, microphone): not retried until the next resume or a Voice save. */
+    private var wakeFailed: String? = null
+    /** The overlay is showing "microphone blocked": a tap opens Android's settings for the app. */
+    private var overlayOpensSettings = false
+    private var tone: android.media.ToneGenerator? = null
+    /** Android's text-to-speech, made on first use: answers Outrider couldn't speak on the PC. */
+    private var tts: android.speech.tts.TextToSpeech? = null
+    private var ttsReady = false
     private var resumed = false
     /** What to do once the microphone permission is answered. */
     private var afterMic: (Boolean) -> Unit = {}
@@ -135,7 +143,7 @@ class MainActivity : ComponentActivity() {
         root.addView(webHost, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         setContentView(root)
         listener = Listener(this, ::onListen)
-        wake = WakeWord(assets, ::onWake)
+        wake = WakeWord(assets, ::onWakeEvent)
         voiceOverlay = makeVoiceOverlay()
         root.addView(voiceOverlay, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
             Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = dp(96) })
@@ -179,6 +187,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         resumed = true
+        wakeFailed = null   // the microphone may be free again
         updateKeepScreenOn()
         voiceIdle()
         hideSystemBars()
@@ -191,11 +200,8 @@ class MainActivity : ComponentActivity() {
         resumed = false
         main.removeCallbacks(retryTick)   // no probing in the background; onResume reconnects from No link
         stopWake()
-        if (listener.active) {
-            listener.cancel()
-            voiceOverlay.visibility = View.GONE
-        }
-        asking = false
+        if (asking) cancelAsk()
+        tts?.stop()
         // The page's long poll stops while the app is away; it resumes and rebaselines on its own.
         web?.onPause()
         web?.pauseTimers()
@@ -208,6 +214,8 @@ class MainActivity : ComponentActivity() {
         askGeneration++
         listener.cancel()
         wake.release()
+        tone?.release()
+        tts?.shutdown()
         main.removeCallbacksAndMessages(null)
         io.shutdownNow()
         askIo.shutdownNow()
@@ -829,7 +837,19 @@ class MainActivity : ComponentActivity() {
     private fun micGranted() =
         ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
+    private fun micState() = Speech.micState(micGranted(), prefs.micAsked,
+        shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO))
+
+    private fun openAppSettings() {
+        try {
+            startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
+        } catch (e: ActivityNotFoundException) {
+            toast("Open Android's Settings → Apps → ED Outrider → Permissions")
+        }
+    }
+
     private fun requestMic(then: (Boolean) -> Unit) {
+        prefs.micAsked = true
         afterMic = then
         micPermission.launch(Manifest.permission.RECORD_AUDIO)
     }
@@ -844,23 +864,32 @@ class MainActivity : ComponentActivity() {
 
     /** Listens for one question (asking for the microphone the first time), then sends it to /api/ask. */
     private fun startAsk() {
-        if (!micGranted()) {
-            requestMic { granted ->
+        when (micState()) {
+            Speech.Mic.BLOCKED -> return showOverlay("The microphone is blocked for ED Outrider: tap here for Android's settings",
+                alert = true, opensSettings = true)
+            Speech.Mic.ASKABLE -> return requestMic { granted ->
                 if (granted) startAsk() else showOverlay("The microphone isn't allowed, so the tablet can't listen", alert = true)
             }
-            return
+            Speech.Mic.GRANTED -> {}
         }
-        if (listener.active) {   // a second tap cancels
-            listener.cancel()
-            voiceOverlay.visibility = View.GONE
-            asking = false
-            voiceIdle()
-            return
-        }
+        if (asking) return cancelAsk()   // a second tap (or press) cancels
         stopWake()   // the recognizer needs the microphone
         asking = true
-        showOverlay("LISTENING…", hold = true)
+        askGeneration++
+        tts?.stop()
+        // "LISTENING" only once the recognizer is really ready (Listener.Event.Ready): words before it are lost
+        showOverlay("One moment…", hold = true)
         listener.start()
+    }
+
+    /** The one way a question ends early: the overlay tap, a second Ask, leaving the app, a recognizer failure. */
+    private fun cancelAsk() {
+        listener.cancel()
+        askGeneration++   // an answer still on its way only tidies up
+        asking = false
+        voiceOverlay.visibility = View.GONE
+        main.removeCallbacks(hideOverlay)
+        voiceIdle()
     }
 
     private fun onWake() {
@@ -869,25 +898,93 @@ class MainActivity : ComponentActivity() {
         startAsk()
     }
 
+    private fun onWakeEvent(event: WakeWord.Event) {
+        when (event) {
+            WakeWord.Event.Listening -> if (resumed && state == State.PAGE && !asking) showWakeIndicator()
+            is WakeWord.Event.Heard -> onWake()
+            is WakeWord.Event.Failed -> {
+                wakeFailed = event.reason
+                wakeIndicator.visibility = View.GONE
+                if (state == State.PAGE) showOverlay("Wake word off: ${event.reason}", alert = true)
+            }
+        }
+    }
+
     private fun onListen(event: Listener.Event) {
         when (event) {
-            Listener.Event.Ready -> showOverlay("LISTENING…", hold = true)
+            Listener.Event.Ready -> {
+                if (prefs.wakeTone) playTone()
+                showOverlay("LISTENING…", hold = true)
+            }
             is Listener.Event.Partial -> showOverlay("“${event.text}”", hold = true)
             is Listener.Event.Heard -> ask(event.text)
             is Listener.Event.Failed -> {
+                cancelAsk()
                 showOverlay(event.reason, alert = true)
-                asking = false
-                voiceIdle()
             }
         }
+    }
+
+    /** A short, quiet two-note tone: "listening now" (the tablet has no vibration motor for a buzz). */
+    private fun playTone() {
+        try {
+            val t = tone ?: android.media.ToneGenerator(android.media.AudioManager.STREAM_SYSTEM, 40).also { tone = it }
+            t.startTone(android.media.ToneGenerator.TONE_PROP_BEEP2, 150)
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "no tone", e)
+        }
+    }
+
+    /** Reads [text] aloud on the tablet (an answer Outrider couldn't speak on the PC), then resumes the wake word. */
+    private fun speakHere(text: String) {
+        val existing = tts
+        if (existing != null && ttsReady) {
+            stopWake()   // don't listen to ourselves
+            existing.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "answer")
+            return
+        }
+        if (existing != null) return   // still starting: this answer stays on screen only
+        tts = android.speech.tts.TextToSpeech(this) { status ->
+            ttsReady = status == android.speech.tts.TextToSpeech.SUCCESS
+            if (!ttsReady) return@TextToSpeech
+            tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+                override fun onDone(utteranceId: String?) = onMain { voiceIdle() }
+                @Deprecated("Deprecated in Java")
+                override fun onError(utteranceId: String?) = onMain { voiceIdle() }
+            })
+            stopWake()
+            tts?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "answer")
+        }
+    }
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        // a headset or Bluetooth play/pause button asks (or cancels), when that's switched on in Voice
+        val media = event.keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE ||
+            event.keyCode == android.view.KeyEvent.KEYCODE_HEADSETHOOK ||
+            event.keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PLAY ||
+            event.keyCode == android.view.KeyEvent.KEYCODE_MEDIA_PAUSE
+        if (media && prefs.mediaButton && state == State.PAGE) {
+            if (event.action == android.view.KeyEvent.ACTION_DOWN && event.repeatCount == 0) startAsk()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     /** Starts or stops the wake word to match the moment: on over the page, while on screen, not mid-question. */
     private fun voiceIdle() {
         val model = wakeModel
-        val want = resumed && state == State.PAGE && prefs.wakeEnabled && !asking && !listener.active && micGranted() && model != null
+        val speaking = tts?.isSpeaking == true
+        val want = resumed && state == State.PAGE && prefs.wakeEnabled && !asking && !listener.active && micGranted() &&
+            model != null && wakeFailed == null && !speaking
         if (want && !wake.active) {
+            // the indicator appears on WakeWord.Event.Listening, once the microphone really delivers audio
             wake.start(WakePhrases.keywords(model!!.first, prefs.wakeWord, prefs.wakeSensitivity))
+        } else if (!want) stopWake()
+    }
+
+    private fun showWakeIndicator() {
+        run {
             val theme = AppTheme.named(prefs.theme)
             val modern = theme.frame == AppTheme.Frame.CARD   // plain sans-serif, as typed; the others condensed caps
             wakeIndicator.text = "◉ " + if (modern) prefs.wakeWord.trim() else Bpe.clean(prefs.wakeWord)
@@ -895,7 +992,7 @@ class MainActivity : ComponentActivity() {
                 else android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD)
             wakeIndicator.setTextColor(theme.accent)
             wakeIndicator.visibility = View.VISIBLE
-        } else if (!want) stopWake()
+        }
     }
 
     private fun stopWake() {
@@ -903,40 +1000,60 @@ class MainActivity : ComponentActivity() {
         wakeIndicator.visibility = View.GONE
     }
 
-    /** The Voice screen: the wake word on or off, the word itself, how readily it triggers. */
-    private fun showVoice(
-        enabled: Boolean = prefs.wakeEnabled,
-        sensitivity: WakePhrases.Sensitivity = prefs.wakeSensitivity,
-        word: String = prefs.wakeWord,
-    ) {
+    /** The Voice screen's choices while it's open (applied by Save). */
+    private data class VoiceDraft(
+        val enabled: Boolean, val sensitivity: WakePhrases.Sensitivity, val word: String,
+        val tone: Boolean, val speakHere: Boolean, val mediaButton: Boolean,
+    )
+
+    /** The Voice screen: the wake word on or off, the word itself, how readily it triggers, and the voice extras. */
+    private fun showVoice(draft: VoiceDraft = VoiceDraft(prefs.wakeEnabled, prefs.wakeSensitivity, prefs.wakeWord,
+        prefs.wakeTone, prefs.speakHere, prefs.mediaButton)) {
         lateinit var s: Screen
-        val typed = { s.field?.text?.toString()?.trim() ?: word }
+        val typed = { s.field?.text?.toString()?.trim() ?: draft.word }
+        val again = { d: VoiceDraft -> showVoice(d.copy(word = typed())) }
         val save = {
             val model = wakeModel
             val problem = if (model == null) "The wake-word model is missing from this build" else WakePhrases.problem(model.first, model.second, typed())
-            if (problem != null && enabled) s.setError(problem)
+            if (problem != null && draft.enabled) s.setError(problem)
             else {
                 if (problem == null) prefs.wakeWord = typed()
-                prefs.wakeEnabled = enabled
-                prefs.wakeSensitivity = sensitivity
+                prefs.wakeEnabled = draft.enabled
+                prefs.wakeSensitivity = draft.sensitivity
+                prefs.wakeTone = draft.tone
+                prefs.speakHere = draft.speakHere
+                prefs.mediaButton = draft.mediaButton
+                wakeFailed = null
                 stopWake()   // restart with the new phrases
-                if (enabled && !micGranted()) requestMic { backToPage() } else backToPage()
+                if (draft.enabled && micState() == Speech.Mic.ASKABLE) requestMic { backToPage() } else backToPage()
             }
         }
-        val mic = if (micGranted()) "" else "\n\nThe microphone isn't allowed yet: Save asks for it."
+        val mic = when (micState()) {
+            Speech.Mic.GRANTED -> ""
+            Speech.Mic.ASKABLE -> "\n\nThe microphone isn't allowed yet: Save asks for it."
+            Speech.Mic.BLOCKED -> "\n\nThe microphone is blocked for ED Outrider: allow it in Android's settings."
+        }
+        val onOff = { b: Boolean -> if (b) "on" else "off" }
+        val buttons = mutableListOf(
+            Screen.Button("Save") { save() },
+            Screen.Button("Wake word: " + onOff(draft.enabled), primary = false) { again(draft.copy(enabled = !draft.enabled)) },
+            Screen.Button("Sensitivity: " + draft.sensitivity.label, primary = false) { again(draft.copy(sensitivity = draft.sensitivity.next())) },
+            Screen.Button("Tone: " + onOff(draft.tone), primary = false) { again(draft.copy(tone = !draft.tone)) },
+            Screen.Button("Speak answers here: " + onOff(draft.speakHere), primary = false) { again(draft.copy(speakHere = !draft.speakHere)) },
+            Screen.Button("Media button: " + onOff(draft.mediaButton), primary = false) { again(draft.copy(mediaButton = !draft.mediaButton)) },
+        )
+        if (micState() == Speech.Mic.BLOCKED) buttons += Screen.Button("Open Android settings", primary = false) { openAppSettings() }
+        buttons += Screen.Button("Cancel", primary = false) { backToPage() }
         s = show(State.VOICE, Screen.Spec(
             title = "Voice",
             body = "Say OK, Hey or Hello and the wake word, wait for LISTENING, then ask: a status report, fuel, " +
                 "unsold, the next jump, what's left here, the nearest unvisited system, hush or unhush. Outrider " +
-                "answers out loud in its own voice.\n\nThe tablet listens for the wake word only while ED Outrider is on " +
-                "screen, on the tablet itself; only the question you ask after it goes on to be understood." + mic,
-            field = Screen.Field(hint = WakePhrases.DEFAULT_WORD, text = word, onDone = { save() }),
-            buttons = listOf(
-                Screen.Button("Save") { save() },
-                Screen.Button("Wake word: " + if (enabled) "on" else "off", primary = false) { showVoice(!enabled, sensitivity, typed()) },
-                Screen.Button("Sensitivity: " + sensitivity.label, primary = false) { showVoice(enabled, sensitivity.next(), typed()) },
-                Screen.Button("Cancel", primary = false) { backToPage() },
-            ),
+                "answers out loud in its own voice; when it can't (no PC window speaking), \"Speak answers here\" " +
+                "reads the answer on the tablet.\n\nThe tablet listens for the wake word only while ED Outrider is on " +
+                "screen, on the tablet itself; only the question you ask after it goes on to be understood. " +
+                "\"Media button\" lets a headset's play/pause button ask instead." + mic,
+            field = Screen.Field(hint = WakePhrases.DEFAULT_WORD, text = draft.word, onDone = { save() }),
+            buttons = buttons,
             footer = "Higher sensitivity hears you through more game noise, and mistakes other words for it more often.",
         ))
     }
@@ -957,7 +1074,10 @@ class MainActivity : ComponentActivity() {
                 asking = false
                 main.postDelayed({ voiceIdle() }, 1500)   // a moment for the PC to start answering aloud
                 when (result) {
-                    is OutriderApi.Result.Ok -> showOverlay(Speech.answerLine(result.value), long = true)
+                    is OutriderApi.Result.Ok -> {
+                        showOverlay(Speech.answerLine(result.value), long = true)
+                        if (!result.value.spoken && prefs.speakHere && result.value.answer.isNotBlank()) speakHere(result.value.answer)
+                    }
                     is OutriderApi.Result.Failed -> when (result.error.status) {
                         404 -> showOverlay("This Outrider can't answer questions yet: update Outrider", alert = true)
                         401 -> {
@@ -974,7 +1094,9 @@ class MainActivity : ComponentActivity() {
     }
 
     /** The overlay: [hold] stays until the next state; otherwise it hides after a few seconds. */
-    private fun showOverlay(text: String, hold: Boolean = false, alert: Boolean = false, long: Boolean = false) {
+    private fun showOverlay(text: String, hold: Boolean = false, alert: Boolean = false, long: Boolean = false,
+                            opensSettings: Boolean = false) {
+        overlayOpensSettings = opensSettings
         val theme = AppTheme.named(prefs.theme)
         voiceOverlay.text = text
         voiceOverlay.setTextColor(if (alert) theme.alert else theme.onFill)
@@ -1005,10 +1127,16 @@ class MainActivity : ComponentActivity() {
         setPadding(dp(28), dp(14), dp(28), dp(14))
         maxWidth = dp(900)
         background = GradientDrawable().apply { cornerRadius = dp(40).toFloat() }
-        // a tap while listening cancels; otherwise it just closes the overlay
+        // a tap while asking cancels; on "microphone blocked" it opens Android's settings; otherwise it just closes
         setOnClickListener {
-            if (listener.active) listener.cancel()
-            visibility = View.GONE
+            when {
+                overlayOpensSettings -> {
+                    visibility = View.GONE
+                    openAppSettings()
+                }
+                asking -> cancelAsk()
+                else -> visibility = View.GONE
+            }
         }
     }
 

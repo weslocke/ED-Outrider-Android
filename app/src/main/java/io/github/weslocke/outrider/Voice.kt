@@ -10,8 +10,8 @@ import android.speech.SpeechRecognizer
 
 /**
  * One spoken question at a time, through Android's speech recognizer: on-device when the tablet has it (no audio
- * leaves the tablet), the system's online recognizer otherwise. Tap-to-ask for now; a wake word would call
- * [start] the same way. Main thread only.
+ * leaves the tablet), the system's online recognizer otherwise. Started by the wake word or the Ask button.
+ * Main thread only.
  */
 class Listener(private val context: Context, private val onEvent: (Event) -> Unit) {
 
@@ -69,8 +69,9 @@ class Listener(private val context: Context, private val onEvent: (Event) -> Uni
             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
+        // offline only on the on-device recognizer: the online fallback is there precisely because offline failed
+        if (onDevice) intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         r.startListening(intent)
     }
 
@@ -118,6 +119,19 @@ object Speech {
     /** On-device errors worth one more try with the system's own (online) recognizer. */
     fun retryOnline(code: Int): Boolean =
         code == ERROR_LANGUAGE_NOT_SUPPORTED || code == ERROR_LANGUAGE_UNAVAILABLE || code == ERROR_SERVER || code == ERROR_CLIENT
+
+    enum class Mic { GRANTED, ASKABLE, BLOCKED }
+
+    /**
+     * The microphone permission's state. After a refusal Android only shows its dialog again while
+     * [rationale] (shouldShowRequestPermissionRationale) is true; once it's false after asking, only Android's
+     * settings can allow it.
+     */
+    fun micState(granted: Boolean, askedBefore: Boolean, rationale: Boolean): Mic = when {
+        granted -> Mic.GRANTED
+        askedBefore && !rationale -> Mic.BLOCKED
+        else -> Mic.ASKABLE
+    }
 
     /** What the overlay says once Outrider has answered. */
     fun answerLine(a: AskAnswer): String = when {
