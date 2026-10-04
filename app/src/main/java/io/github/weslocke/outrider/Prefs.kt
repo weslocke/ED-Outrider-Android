@@ -59,9 +59,19 @@ class Prefs(context: Context) {
         get() = Servers.fromJson(sp.getString(KEY_SAVED, null))
         set(value) = sp.edit { putString(KEY_SAVED, Servers.toJson(value)) }
 
+    /**
+     * The page's theme for the current Outrider (each remembers its own, so switching shows the right colours
+     * before the page loads); the last one set is the fallback for an Outrider not seen yet.
+     */
     var theme: String?
-        get() = sp.getString(KEY_THEME, null)
-        set(value) = sp.edit { if (value == null) remove(KEY_THEME) else putString(KEY_THEME, value) }
+        get() = address?.let { Servers.tokensFromJson(sp.getString(KEY_THEMES, null))[it.origin] } ?: sp.getString(KEY_THEME, null)
+        set(value) = sp.edit {
+            if (value == null) remove(KEY_THEME) else putString(KEY_THEME, value)
+            val origin = address?.origin ?: return@edit
+            val themes = Servers.tokensFromJson(sp.getString(KEY_THEMES, null))   // same shape: origin → name
+            if (value == null) themes.remove(origin) else themes[origin] = value
+            putString(KEY_THEMES, Servers.tokensToJson(themes))
+        }
 
     /** The wake word (phase 6): on unless switched off; the word after OK / Hey / Hello; how readily it triggers. */
     var wakeEnabled: Boolean
@@ -111,5 +121,6 @@ class Prefs(context: Context) {
         const val KEY_COOKIES = "cookies"
         const val KEY_SAVED = "saved_servers"
         const val KEY_THEME = "theme"
+        const val KEY_THEMES = "themes"
     }
 }

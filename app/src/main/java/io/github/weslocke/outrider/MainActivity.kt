@@ -149,14 +149,17 @@ class MainActivity : ComponentActivity() {
             Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = dp(96) })
         wakeIndicator = makeWakeIndicator()
         root.addView(wakeIndicator, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
-            Gravity.BOTTOM or Gravity.START).apply { leftMargin = dp(20); bottomMargin = dp(16) })
+            Gravity.BOTTOM or Gravity.START).apply { leftMargin = dp(20); bottomMargin = dp(6) })
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         hideSystemBars()
-        // System bars stay hidden; the keyboard is the only inset, and the page or form shrinks above it.
+        // System bars stay hidden. The keyboard shrinks the page or form above it, and a display cutout (a phone's
+        // camera hole) is kept clear of the frames and the page.
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
-            v.setPadding(0, 0, 0, insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
+            val cut = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            v.setPadding(cut.left, cut.top, cut.right, maxOf(ime, cut.bottom))
             insets
         }
 
@@ -605,7 +608,7 @@ class MainActivity : ComponentActivity() {
     private fun savedChoices(): List<Screen.Button> {
         val current = prefs.address
         return prefs.saved.filter { it.address != current }.map { s ->
-            Screen.Button(s.label, primary = false, onLongClick = {
+            Screen.Button(s.label, primary = false, longClickLabel = "Forget this Outrider", onLongClick = {
                 forgetOutrider(s.address)
                 toast("Forgot ${s.address.display}")
                 // refresh the row in place: rebuilding No link would also restart its retry countdown
@@ -1131,8 +1134,12 @@ class MainActivity : ComponentActivity() {
         visibility = View.GONE
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
         typeface = android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD)
-        setPadding(dp(10), dp(4), dp(10), dp(4))
-        background = GradientDrawable().apply { setColor(0xB0000000.toInt()); cornerRadius = dp(12).toFloat() }
+        // a 48 dp touch target that still looks like the small pill: the pill is drawn inset inside it
+        minHeight = dp(48)
+        gravity = Gravity.CENTER
+        setPadding(dp(10), 0, dp(10), 0)
+        background = android.graphics.drawable.InsetDrawable(
+            GradientDrawable().apply { setColor(0xB0000000.toInt()); cornerRadius = dp(12).toFloat() }, 0, dp(10), 0, dp(10))
         contentDescription = "Listening for the wake word"
         setOnClickListener { showVoice() }
     }

@@ -47,9 +47,9 @@ data class AppTheme(
             primary = 0xFFFF9933.toInt(),
             secondary = 0xFFCC99CC.toInt(),
             accent = 0xFF9999FF.toInt(),
-            text = 0xFFFFCC99.toInt(),
+            text = 0xFFF4E9DA.toInt(),   // lcars.css --text (peach is for headings there)
             onFill = 0xFF000000.toInt(),
-            alert = 0xFFFF5555.toInt(),
+            alert = 0xFFFF6666.toInt(),  // lcars.css --bad
             cornerRadiusDp = 28f,
             frame = Frame.ELBOW,
         )
@@ -88,7 +88,8 @@ data class AppTheme(
             secondary = 0xFF7A2A18.toInt(),
             accent = 0xFFE0A040.toInt(),
             text = 0xFFE8C9A0.toInt(),
-            onFill = 0xFF120806.toInt(),
+            // parchment on the rust fills: dark text on #7A2A18 was 2.0:1
+            onFill = 0xFFF2D9B8.toInt(),
             alert = 0xFFFFC24B.toInt(),
             cornerRadiusDp = 2f,
             frame = Frame.CHAMFER,
@@ -102,7 +103,8 @@ data class AppTheme(
             secondary = 0xFF5A0A12.toInt(),
             accent = 0xFFE8E8E8.toInt(),
             text = 0xFFC9CED6.toInt(),
-            onFill = 0xFF000000.toInt(),
+            // white on the reds: black on #5A0A12 was 1.5:1
+            onFill = 0xFFFFFFFF.toInt(),
             alert = 0xFFFFB000.toInt(),
             cornerRadiusDp = 0f,
             frame = Frame.CHAMFER,
@@ -141,5 +143,35 @@ data class AppTheme(
         private val ALL = listOf(LCARS, ELITE, BABYLON5, NARN, SITH, ALLIANCE, DARK).associateBy { it.name }
 
         fun named(name: String?): AppTheme = ALL[name?.lowercase()] ?: LCARS
+
+        val all: Collection<AppTheme> get() = ALL.values
+
+        /** Field fill (accent over the background) and hint (text over that fill) opacities, used by Ui.kt. */
+        const val FIELD_FILL_ALPHA = 0x26
+        const val HINT_ALPHA = 0xA0   // 0x70 left Elite's hint at 2.6:1
+    }
+}
+
+/** WCAG 2 contrast, for the theme checks in the unit tests. Pure. */
+object Contrast {
+    private fun channel(c: Int): Double {
+        val v = c / 255.0
+        return if (v <= 0.03928) v / 12.92 else Math.pow((v + 0.055) / 1.055, 2.4)
+    }
+
+    private fun luminance(argb: Int) =
+        0.2126 * channel((argb shr 16) and 0xFF) + 0.7152 * channel((argb shr 8) and 0xFF) + 0.0722 * channel(argb and 0xFF)
+
+    fun ratio(fg: Int, bg: Int): Double {
+        val a = luminance(fg)
+        val b = luminance(bg)
+        return (maxOf(a, b) + 0.05) / (minOf(a, b) + 0.05)
+    }
+
+    /** [fg] at [alpha] (0-255) over an opaque [bg]. */
+    fun over(fg: Int, alpha: Int, bg: Int): Int {
+        val a = alpha / 255.0
+        fun mix(shift: Int) = (((fg shr shift) and 0xFF) * a + ((bg shr shift) and 0xFF) * (1 - a)).toInt()
+        return (0xFF shl 24) or (mix(16) shl 16) or (mix(8) shl 8) or mix(0)
     }
 }

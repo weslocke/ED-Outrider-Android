@@ -24,6 +24,9 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
+import androidx.core.view.AccessibilityDelegateCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 
 /**
  * The app's own screens (settings, sign-in, "no link", update): a frame drawn like the tablet page's shell, a
@@ -35,6 +38,8 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
         val label: String,
         val primary: Boolean = true,
         val onLongClick: (() -> Unit)? = null,
+        /** What a screen reader calls the long press ("Forget this Outrider"). */
+        val longClickLabel: String? = null,
         val onClick: () -> Unit,
     )
 
@@ -78,6 +83,8 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
 
     init {
         val frame = FrameLayout(context).apply { background = FrameDrawable(theme, dp(1f)) }
+        // a screen reader announces each of the app's screens by its title when it appears
+        ViewCompat.setAccessibilityPaneTitle(frame, spec.title)
         val scroll = ScrollView(context).apply { isFillViewport = true }
         val column = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -89,6 +96,8 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
 
         column.addView(text(caps(spec.title), if (modern) 34f else 40f, if (modern) theme.text else theme.primary, condensedBold))
         bodyView = text(spec.body ?: "", 22f, theme.text, condensed).apply {
+            // "Signing in…", "Trying again in 4 s": read out when they change
+            ViewCompat.setAccessibilityLiveRegion(this, ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE)
             setPadding(0, 12.dp(), 0, 0)
             setLineSpacing(0f, 1.15f)
             visibility = if (spec.body == null) View.GONE else View.VISIBLE
@@ -98,6 +107,7 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
         field = spec.field?.let { f -> editText(context, f).also { column.addView(it, fieldParams()) } }
 
         errorView = text(spec.error ?: "", 22f, theme.alert, condensedBold).apply {
+            ViewCompat.setAccessibilityLiveRegion(this, ViewCompat.ACCESSIBILITY_LIVE_REGION_POLITE)
             setPadding(0, 16.dp(), 0, 0)
             visibility = if (spec.error == null) View.GONE else View.VISIBLE
         }
@@ -163,21 +173,27 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
         typeface = face
     }
 
-    private fun fieldParams() = LinearLayout.LayoutParams(dp(560f).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+    // the row's width, but never wider than 560 dp (a fixed 560 ran off narrow screens)
+    private fun fieldParams() = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
         topMargin = 24.dp()
     }
 
-    private fun editText(context: Context, f: Field) = EditText(context).apply {
+    private fun editText(context: Context, f: Field) = object : EditText(context) {
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val w = minOf(MeasureSpec.getSize(widthMeasureSpec), 560.dp())
+            super.onMeasure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), heightMeasureSpec)
+        }
+    }.apply {
         setText(f.text)
         hint = f.hint
         setTextColor(theme.text)
-        setHintTextColor(ColorUtils.setAlphaComponent(theme.text, 0x70))
+        setHintTextColor(ColorUtils.setAlphaComponent(theme.text, AppTheme.HINT_ALPHA))
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 26f)
         typeface = condensed
         isSingleLine = true
         minHeight = 64.dp()
         background = GradientDrawable().apply {
-            setColor(ColorUtils.setAlphaComponent(theme.accent, 0x26))
+            setColor(ColorUtils.setAlphaComponent(theme.accent, AppTheme.FIELD_FILL_ALPHA))
             setStroke(2.dp(), theme.accent)
             cornerRadius = dp(6f)
         }
@@ -222,6 +238,17 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
         isFocusable = true
         setOnClickListener { b.onClick() }
         b.onLongClick?.let { long -> setOnLongClickListener { long(); true } }
+        // read as a button (it's a TextView underneath), with the long press named
+        ViewCompat.setAccessibilityDelegate(this, object : AccessibilityDelegateCompat() {
+            override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
+                super.onInitializeAccessibilityNodeInfo(host, info)
+                info.className = android.widget.Button::class.java.name
+            }
+        })
+        if (b.onLongClick != null && b.longClickLabel != null) {
+            ViewCompat.replaceAccessibilityAction(this, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_LONG_CLICK,
+                b.longClickLabel) { _, _ -> b.onLongClick.invoke(); true }
+        }
     }
 
     private fun pill(color: Int) = GradientDrawable().apply {
