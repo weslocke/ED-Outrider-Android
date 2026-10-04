@@ -1,8 +1,8 @@
 # Changelog
 
-## 1.2.0 (unreleased)
+## 1.2.0 (2026-10-04)
 
-- The app's settings are in Outrider's own Settings: a **Tablet app** section (Outrider 2026.10.4 or newer) opens the
+- The app's settings are in Outrider's own Settings: a **Tablet app** section (Outrider 2026.10.5 or newer) opens the
   app's Server, Voice and menu screens through three new bridge calls, `openServer()`, `openVoice()` and
   `openMenu()`. Back still opens the menu.
 - The app's "Settings" button (the Back menu, Connecting, No link, sign-in, update) is now **Server**, so it isn't
