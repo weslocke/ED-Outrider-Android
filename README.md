@@ -43,11 +43,12 @@ the tablet sleeps, and listens for your voice.
 | 🖥️ **Cockpit display** | Outrider's tablet layout full screen, landscape, screen kept on: Now, Nearby, Here, Samples, Bookmarks, Search, Map, Highway, History, Log, Materials and My firsts. |
 | 🕹️ **Ship controls** | A column of game buttons (landing gear, cargo scoop, lights, silent running, ...) that press your own key bindings in the game, lit from the game's own status. Changes with the vehicle: ship, SRV, fighter, on foot. *(Needs Outrider on the gaming PC, on Linux; an Outrider in server mode shows no game buttons.)* |
 | 🎙️ **"Hey Vespa"** | Say *"Hey / OK / Hello Vespa"*, then ask: *status report*, *fuel*, *unsold*, *next jump*, *what's left here*, *nearest unvisited*, *hush*. Outrider answers out loud in its own voice (or the tablet reads it, when Outrider can't). The wake word is yours to change. |
+| 🔊 **Alerts on the tablet** | With Outrider on a server and no browser open, the tablet itself speaks Outrider's alerts in Outrider's voice and plays its sounds; you pick which ones. |
 | 🎨 **Themes** | LCARS, Elite (cockpit HUD), Babylon 5 (Earthforce and Narn), Star Wars (Sith and Alliance) and a modern Dark mode, picked in the page's settings; the app's own screens follow. |
 | 🔒 **Signs in once** | When Outrider asks devices on the network for a password, the app signs in and stays signed in until it changes. |
 | 🔁 **Reconnects** | Says plainly when Outrider can't be reached, and picks up again by itself when it's back. |
 | ⬇️ **Exports** | Outrider's CSV and JSON exports save to the tablet's Downloads. |
-| 🔀 **More than one Outrider** | Remembers the Outriders it has used (say one on the game PC and one on a server) and switches between them from the Back menu, each staying signed in. |
+| 🔀 **More than one Outrider** | Remembers the Outriders it has used (say one on the game PC and one on a server) and switches between them from Settings → Tablet app → Server…, each staying signed in. |
 
 ### Themes
 
@@ -68,32 +69,80 @@ the tablet sleeps, and listens for your voice.
 
 **You need**
 
-- [ED Outrider](https://github.com/weslocke/ED-Outrider), a version with the tablet layout, running on a computer on
-  your network (the gaming PC, or another machine such as a home server) and listening on the network:
+- [ED Outrider](https://github.com/weslocke/ED-Outrider), a version with the tablet layout (2026.10.7 or newer for
+  everything below), running on a computer on your network (the gaming PC, or another machine such as a home server) and listening on the network:
   `[server] host = "0.0.0.0"` in `ed_outrider.toml` (not only `127.0.0.1`).
 - An Android tablet with Android 8 or newer on the same network, with an ARM processor (nearly all phones and tablets;
   Intel/x86 devices such as emulators and some Chromebooks aren't supported). It's built for an 11" landscape screen
   (tested on a Galaxy Tab A11+).
 
-**Install.** The app is sideloaded, not from an app store. Download `ED-Outrider-<version>.apk` from the
-[releases](https://github.com/weslocke/ED-Outrider-Android/releases) and open it on the tablet (allow installing from
-that source when Android asks), or from a PC with the tablet on USB:
+### Installing (sideloading)
+
+The app isn't in an app store: you install the APK file yourself ("sideloading"). It takes a couple of minutes, once.
+
+**On the tablet**
+
+1. On the tablet, open the [latest release](https://github.com/weslocke/ED-Outrider-Android/releases/latest) in its
+   browser and tap **`ED-Outrider-<version>.apk`** under *Assets* to download it.
+2. Open the download: from the browser's download notification, or in the **Files** / **My Files** app under
+   **Downloads**.
+3. Android asks to allow installing apps from that source (the browser or the Files app). Tap **Settings**, turn on
+   **Allow from this source**, and go back. If it doesn't ask, the setting is under **Settings → Apps → Special access
+   → Install unknown apps** (on Samsung: **Settings → Apps → ⋮ → Special access → Install unknown apps**); pick the
+   browser or Files app and allow it.
+4. Tap **Install**. Google Play Protect may warn about an app from an unknown developer: tap **More details →
+   Install anyway** (the app is open source, and you can check the file: below).
+5. Open **ED Outrider** from the app drawer. You can turn *Allow from this source* off again afterwards.
+
+**From a PC, over USB** (handy if you already use `adb`)
+
+1. On the tablet: **Settings → About tablet → Software information**, tap **Build number** seven times to unlock
+   **Developer options**, then turn on **Developer options → USB debugging**.
+2. Connect the tablet by USB and accept the *Allow USB debugging?* prompt on it.
+3. On the PC, with [Android's platform tools](https://developer.android.com/tools/releases/platform-tools):
 
 ```bash
-adb install -r ED-Outrider-1.1.0.apk
+adb install -r ED-Outrider-<version>.apk
 ```
 
-**First start.** Enter the address of the computer running Outrider, e.g. `192.168.1.20` (add `:port` if Outrider doesn't use 8025). If Outrider
+**Updating.** Install the newer APK the same way, over the old one: your Outriders, sign-ins and voice settings are
+kept. Every release is signed with the same key (see *Privacy and security*), and Android refuses an update signed
+with any other key.
+
+**Checking the file (optional).** Each release lists the APK's SHA-256. `sha256sum ED-Outrider-<version>.apk` (Linux),
+`shasum -a 256 ED-Outrider-<version>.apk` (macOS) or `certutil -hashfile ED-Outrider-<version>.apk SHA256` (Windows)
+should print the same.
+
+**Uninstalling.** Long-press **ED Outrider** → **Uninstall** (or `adb uninstall io.github.weslocke.outrider`). This
+removes its settings and sign-ins from the tablet; nothing changes on Outrider.
+
+### First start
+
+Enter the address of the computer running Outrider, e.g. `192.168.1.20` (add `:port` if Outrider doesn't use 8025). If Outrider
 has a `[server] password`, the app asks for it once.
 
-**Using it.** The tablet layout is Outrider's: tap the groups on the left, the pages under them, rows for details.
-The app's own settings are in Outrider's **Settings**, under **Tablet app**: **Server…** (which Outrider to use),
-**Voice…** and **App menu…** (reload, ask, sign out). **Back** opens the same app menu from anywhere.
+### Using it
 
-**More than one Outrider.** The app remembers the last four Outriders it connected to, labelled *game PC* or
+The tablet layout is Outrider's: tap the groups on the left, the pages under them, rows for details.
+The app's own settings are in Outrider's **Settings** (bottom right), under **Tablet app**: **Server…** (which
+Outrider to use), **Voice…** and **App menu…** (reload, ask, sign out). **Back** opens the same app menu from
+anywhere, and is the way in when there's no Tablet app section (it needs app 1.2 and Outrider 2026.10.5 or newer).
+
+### More than one Outrider
+
+The app remembers the last four Outriders it connected to, labelled *game PC* or
 *server* from what each says about itself. Switch between them from **Settings → Tablet app → Server…** (or the Back
 menu, or when one isn't answering), or type a new address there; each keeps its own sign-in. A long press on one
 forgets it.
+
+### Alerts on the tablet
+
+Outrider speaks its alerts (a valuable body scanned, fuel low, a first discovery, ...) from a browser window on the
+PC. With Outrider on a server, or no browser open, tick **Play alerts here** in the tablet's **Settings**: the tablet
+then speaks the alerts in Outrider's own voice and plays its sounds itself. **Choose alerts…** (shown while it's
+ticked) lists every alert with **Voice** and **Sound** toggles, so the tablet plays only the ones you want. The
+choices belong to this tablet (the PC keeps its own); **Copy the PC's saved choices** starts from the PC's. Needs
+Outrider 2026.10.7 or newer. The tablet speaks only while the app is on screen.
 
 ## Voice
 

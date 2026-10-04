@@ -81,6 +81,10 @@ Elsewhere:
   compare canonical hosts, and don't parse page URLs with `java.net.URI`.
 - `HttpURLConnection` with fixed-length streaming lost the body of a 401 answer to a POST; the app doesn't use it.
 - A stroked outline in a `Drawable` washed the whole window out on the tablet; draw borders as filled shapes.
+- The WebView's no-tap audio rule (`mediaPlaybackRequiresUserGesture`) only ever blocked `<audio>`/`<video>`: Web Audio
+  (which Outrider's page uses) ran without a tap even before the app turned the rule off in 1.2.
+- `uiautomator dump` doesn't see the app's own screens while the keyboard is up; tap by coordinates from a screenshot.
+- `pkill -f <pattern>` also matches the shell running it and kills that; stop the fake Outrider by its PID.
 - Never pipe `adb shell run-as <pkg> cat` into another `run-as` write of the same file: it emptied the prefs. Back
   the file up first, edit a local copy, then `cat local | adb shell run-as <pkg> sh -c "'cat > shared_prefs/outrider.xml'"`,
   and put the author's own settings back after testing.
