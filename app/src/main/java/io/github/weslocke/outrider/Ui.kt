@@ -54,8 +54,12 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
     private val res = context.resources
     private fun dp(v: Float) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, res.displayMetrics)
 
-    private val condensed = Typeface.create("sans-serif-condensed", Typeface.NORMAL)
-    private val condensedBold = Typeface.create("sans-serif-condensed", Typeface.BOLD)
+    // the sci-fi themes use condensed capitals; the modern dark theme plain sans-serif in sentence case
+    private val modern = theme.frame == AppTheme.Frame.CARD
+    private val condensed = Typeface.create(if (modern) "sans-serif" else "sans-serif-condensed", Typeface.NORMAL)
+    private val condensedBold = if (modern) Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        else Typeface.create("sans-serif-condensed", Typeface.BOLD)
+    private fun caps(s: String) = if (modern) s else s.uppercase()
 
     val view: View
     val field: EditText?
@@ -73,7 +77,7 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
         scroll.addView(column, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         frame.addView(scroll, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
 
-        column.addView(text(spec.title.uppercase(), 40f, theme.primary, condensedBold))
+        column.addView(text(caps(spec.title), if (modern) 34f else 40f, if (modern) theme.text else theme.primary, condensedBold))
         bodyView = text(spec.body ?: "", 22f, theme.text, condensed).apply {
             setPadding(0, 12.dp(), 0, 0)
             setLineSpacing(0f, 1.15f)
@@ -163,10 +167,10 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
     }
 
     private fun button(context: Context, b: Button) = TextView(context).apply {
-        text = b.label.uppercase()
+        text = caps(b.label)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
         typeface = condensedBold
-        setTextColor(theme.onFill)
+        setTextColor(if (b.primary) theme.onFill else theme.onSecondary)
         // LCARS labels sit at the lower right of their pill; other themes centre them
         if (theme.frame == AppTheme.Frame.ELBOW) {
             gravity = Gravity.CENTER_VERTICAL or Gravity.END
@@ -212,6 +216,7 @@ private class FrameDrawable(private val theme: AppTheme, private val dp: Float) 
             AppTheme.Frame.ELBOW -> intArrayOf(SIDE + MARGIN + 36, BAR + MARGIN + 28, MARGIN + 36, MARGIN + 28)
             AppTheme.Frame.CHAMFER -> intArrayOf(MARGIN + 56, MARGIN + 40, MARGIN + 56, MARGIN + 40)
             AppTheme.Frame.CONSOLE -> intArrayOf(MARGIN + 40, MARGIN + 28 + 36, MARGIN + 40, MARGIN + 32)
+            AppTheme.Frame.CARD -> intArrayOf(MARGIN + 48, MARGIN + 40, MARGIN + 48, MARGIN + 36)
         }
     }
 
@@ -224,6 +229,7 @@ private class FrameDrawable(private val theme: AppTheme, private val dp: Float) 
             AppTheme.Frame.ELBOW -> drawElbow(canvas)
             AppTheme.Frame.CHAMFER -> drawChamfer(canvas)
             AppTheme.Frame.CONSOLE -> drawConsole(canvas)
+            AppTheme.Frame.CARD -> drawCard(canvas)
         }
     }
 
@@ -259,6 +265,23 @@ private class FrameDrawable(private val theme: AppTheme, private val dp: Float) 
         canvas.drawPath(path, paint)
         paint.color = theme.accent
         canvas.drawRect(r - 120 * dp, t + 6 * dp, r - 12 * dp, t + 10 * dp, paint)
+    }
+
+    /** Modern dark: one rounded card in the surface colour with a hairline border, a thin accent rule at the top. */
+    private fun drawCard(canvas: Canvas) {
+        val b = bounds
+        val m = MARGIN * dp
+        val border = RectF(b.left + m, b.top + m, b.right - m, b.bottom - m)
+        val card = RectF(border.left + dp, border.top + dp, border.right - dp, border.bottom - dp)
+        // The border is a filled, slightly lighter card under the surface one, not a stroke: on the tablet a
+        // stroked outline here washed the whole window out by about 16 % (the other frames' strokes don't).
+        paint.style = Paint.Style.FILL
+        paint.color = ColorUtils.blendARGB(theme.surface, 0xFFFFFFFF.toInt(), 0.08f)
+        canvas.drawRoundRect(border, 12 * dp, 12 * dp, paint)
+        paint.color = theme.surface
+        canvas.drawRoundRect(card, 11 * dp, 11 * dp, paint)
+        paint.color = theme.accent
+        canvas.drawRoundRect(RectF(card.left + 24 * dp, border.top, card.left + 96 * dp, border.top + 3 * dp), 2 * dp, 2 * dp, paint)
     }
 
     /** Babylon 5: a thin bordered panel, an angled header tab top-left and an accent rule under it. */

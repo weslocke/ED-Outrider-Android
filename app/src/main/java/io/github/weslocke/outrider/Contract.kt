@@ -24,6 +24,9 @@ data class VersionInfo(
     val minApp: String,
     val password: Boolean,
     val signedIn: Boolean,
+    /** False for an Outrider in server mode (away from the game PC: no game buttons). Absent = an older Outrider,
+     *  which always runs on the game PC. */
+    val gamePc: Boolean = true,
 ) {
     companion object {
         /** Null when the answer isn't Outrider's (not JSON, or no integer `api`). */
@@ -35,6 +38,7 @@ data class VersionInfo(
                 minApp = o.optString("min_app", "0"),
                 password = o.optBoolean("password", false),
                 signedIn = o.optBoolean("signed_in", false),
+                gamePc = o.optBoolean("game_pc", true),
             )
         } catch (e: JSONException) {
             null

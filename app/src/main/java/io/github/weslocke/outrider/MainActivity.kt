@@ -642,7 +642,8 @@ class MainActivity : ComponentActivity() {
         if (lastVersion?.password == true && prefs.token != null) buttons += Screen.Button("Sign out", primary = false) { signOut() }
         show(State.MENU, Screen.Spec(
             title = "ED Outrider",
-            body = "Connected to ${prefs.address?.display}.",
+            body = "Connected to ${prefs.address?.display}." +
+                if (lastVersion?.gamePc == false) "\nOutrider on a server: no game buttons (they need Outrider on the game PC)." else "",
             buttons = buttons,
             footer = footer(),
         ))
@@ -733,8 +734,12 @@ class MainActivity : ComponentActivity() {
         val want = resumed && state == State.PAGE && prefs.wakeEnabled && !asking && !listener.active && micGranted() && model != null
         if (want && !wake.active) {
             wake.start(WakePhrases.keywords(model!!.first, prefs.wakeWord, prefs.wakeSensitivity))
-            wakeIndicator.text = "◉ " + Bpe.clean(prefs.wakeWord)
-            wakeIndicator.setTextColor(AppTheme.named(prefs.theme).accent)
+            val theme = AppTheme.named(prefs.theme)
+            val modern = theme.frame == AppTheme.Frame.CARD   // plain sans-serif, as typed; the others condensed caps
+            wakeIndicator.text = "◉ " + if (modern) prefs.wakeWord.trim() else Bpe.clean(prefs.wakeWord)
+            wakeIndicator.typeface = if (modern) android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+                else android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD)
+            wakeIndicator.setTextColor(theme.accent)
             wakeIndicator.visibility = View.VISIBLE
         } else if (!want) stopWake()
     }

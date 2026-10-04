@@ -41,9 +41,9 @@ the tablet sleeps, and listens for your voice.
 | | |
 |---|---|
 | 🖥️ **Cockpit display** | Outrider's tablet layout full screen, landscape, screen kept on: Now, Nearby, Here, Samples, Bookmarks, Search, Map, Highway, History, Log, Materials and My firsts. |
-| 🕹️ **Ship controls** | A column of game buttons (landing gear, cargo scoop, lights, silent running, ...) that press your own key bindings in the game, lit from the game's own status. Changes with the vehicle: ship, SRV, fighter, on foot. *(Needs Outrider on the gaming PC, on Linux.)* |
+| 🕹️ **Ship controls** | A column of game buttons (landing gear, cargo scoop, lights, silent running, ...) that press your own key bindings in the game, lit from the game's own status. Changes with the vehicle: ship, SRV, fighter, on foot. *(Needs Outrider on the gaming PC, on Linux; an Outrider in server mode shows no game buttons.)* |
 | 🎙️ **"Hey Vespa"** | Say *"Hey / OK / Hello Vespa"*, then ask: *status report*, *fuel*, *unsold*, *next jump*, *what's left here*, *nearest unvisited*, *hush*. Outrider answers out loud in its own voice. The wake word is yours to change. |
-| 🎨 **Themes** | LCARS, Elite (cockpit HUD), Babylon 5 (Earthforce and Narn) and Star Wars (Sith and Alliance), picked in the page's settings; the app's own screens follow. |
+| 🎨 **Themes** | LCARS, Elite (cockpit HUD), Babylon 5 (Earthforce and Narn), Star Wars (Sith and Alliance) and a modern Dark mode, picked in the page's settings; the app's own screens follow. |
 | 🔒 **Signs in once** | When Outrider asks devices on the network for a password, the app signs in and stays signed in until it changes. |
 | 🔁 **Reconnects** | Says plainly when Outrider can't be reached, and picks up again by itself when it's back. |
 | ⬇️ **Exports** | Outrider's CSV and JSON exports save to the tablet's Downloads. |
@@ -59,7 +59,11 @@ the tablet sleeps, and listens for your voice.
   <img src="docs/images/tablet-alliance.webp" alt="The Rebel Alliance theme: Nearby" width="290">
 </p>
 
-<p align="center"><sub>Six themes: Elite, Babylon 5 (Earthforce), LCARS, and Narn, Sith and Rebel Alliance.</sub></p>
+<p align="center">
+  <img src="docs/images/tablet-dark.webp" alt="The modern Dark theme: Nearby with line icons and switches" width="600">
+</p>
+
+<p align="center"><sub>Seven themes: Elite, Babylon 5 (Earthforce), LCARS, Narn, Sith, Rebel Alliance, and a modern Dark mode.</sub></p>
 
 ## Getting started
 
@@ -184,7 +188,7 @@ ignore fields they don't know.
 
 | | |
 |---|---|
-| `GET /api/version` | `{"outrider", "api", "min_app", "password", "signed_in"}`, open without a session |
+| `GET /api/version` | `{"outrider", "api", "min_app", "password", "signed_in", "game_pc"}`, open without a session (`game_pc`: false for Outrider in server mode) |
 | `POST /api/auth/signin` | `{"password"}` → `{"ok", "token"}` and a session cookie |
 | `POST /api/auth/signout` | ends the session |
 | `POST /api/ask` | `{"text", "source": "vespa"}` → `{"answer", "spoken", "matched", "command"}` (Outrider speaks the answer) |
@@ -200,7 +204,7 @@ browser. The bridge exists only on the configured Outrider's pages.
 | `appVersion()` | e.g. `"1.0.0"` |
 | `haptic(ms)` | a short vibration, up to 100 ms (nothing on tablets without a motor) |
 | `signInRequired()` | the session is gone: the app signs in again and reloads the page |
-| `setTheme(name)` | `"lcars"`, `"elite"`, `"babylon5"`, `"narn"`, `"sith"` or `"alliance"`, so the app's own screens match the page |
+| `setTheme(name)` | `"lcars"`, `"elite"`, `"babylon5"`, `"narn"`, `"sith"`, `"alliance"` or `"dark"`, so the app's own screens match the page |
 | `listen()` | listen for one spoken question, send it to `POST /api/ask` and show the answer |
 </details>
 
@@ -210,7 +214,8 @@ browser. The bridge exists only on the configured Outrider's pages.
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) and its English keyword-spotting model (Apache-2.0), for the
   wake word.
 - Elite Dangerous is © Frontier Developments plc. This is an unofficial fan project, not affiliated with or endorsed
-  by Frontier. The themes are inspired by Star Trek's LCARS, Babylon 5 and Star Wars and use no assets from any of them.
+  by Frontier. The themes are inspired by Star Trek's LCARS, Babylon 5 and Star Wars and use no assets from any of them;
+  the Dark theme's icons are [Lucide](https://lucide.dev) (ISC), served by Outrider.
 
 ## Licence
 

@@ -13,4 +13,4 @@ The first version: a cockpit tablet for [ED Outrider](https://github.com/weslock
 - The page <-> app bridge (`window.OutriderApp`, version 1): haptic, sign-in, app version, theme, listen.
 - Voice: the wake word "OK / Okay / Hey / Hello Vespa" (the word and its sensitivity are settings), or Ask; the
   question goes to Outrider, which answers out loud in its own voice.
-- The app's own screens follow the page's theme: LCARS, Elite, Babylon 5, Narn, Sith or Alliance.
+- The app's own screens follow the page's theme: LCARS, Elite, Babylon 5, Narn, Sith, Alliance or Dark.

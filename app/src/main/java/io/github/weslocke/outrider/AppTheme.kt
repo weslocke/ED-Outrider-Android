@@ -23,6 +23,10 @@ data class AppTheme(
     /** Button corners: LCARS pills, square for chamfered Elite panels, slightly rounded consoles. */
     val cornerRadiusDp: Float,
     val frame: Frame,
+    /** Text on secondary buttons: the same as [onFill] unless the secondary fill is dark (the modern theme). */
+    val onSecondary: Int = onFill,
+    /** Card surface for the [Frame.CARD] frame. */
+    val surface: Int = background,
 ) {
     /** How a screen's frame is drawn. */
     enum class Frame {
@@ -32,6 +36,8 @@ data class AppTheme(
         CHAMFER,
         /** Babylon 5's consoles: a thin bordered panel with an angled header tab. */
         CONSOLE,
+        /** A modern dark interface: no decoration, the screen on one rounded card. */
+        CARD,
     }
 
     companion object {
@@ -116,7 +122,23 @@ data class AppTheme(
             frame = Frame.CONSOLE,
         )
 
-        private val ALL = listOf(LCARS, ELITE, BABYLON5, NARN, SITH, ALLIANCE).associateBy { it.name }
+        /** A modern dark mode: slate greys (not pure black), one blue accent, rounded cards. */
+        val DARK = AppTheme(
+            name = "dark",
+            background = 0xFF121417.toInt(),
+            primary = 0xFF4F8CFF.toInt(),
+            secondary = 0xFF2A2F37.toInt(),
+            accent = 0xFF4F8CFF.toInt(),
+            text = 0xFFE6E8EB.toInt(),
+            onFill = 0xFFFFFFFF.toInt(),
+            alert = 0xFFFF6B6B.toInt(),
+            cornerRadiusDp = 10f,
+            frame = Frame.CARD,
+            onSecondary = 0xFFE6E8EB.toInt(),
+            surface = 0xFF1C1F24.toInt(),
+        )
+
+        private val ALL = listOf(LCARS, ELITE, BABYLON5, NARN, SITH, ALLIANCE, DARK).associateBy { it.name }
 
         fun named(name: String?): AppTheme = ALL[name?.lowercase()] ?: LCARS
     }

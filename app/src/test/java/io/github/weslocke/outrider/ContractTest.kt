@@ -11,6 +11,12 @@ class ContractTest {
         assertEquals(VersionInfo("2026.10.3", 1, "1.0.0", password = true, signedIn = false), v)
     }
 
+    @Test fun serverMode() {
+        // an older Outrider has no game_pc: it is always the game PC
+        assertEquals(true, VersionInfo.parse("""{"outrider":"x","api":1,"min_app":"1.0.0","password":false,"signed_in":true}""")!!.gamePc)
+        assertEquals(false, VersionInfo.parse("""{"outrider":"x","api":1,"min_app":"1.0.0","password":true,"signed_in":true,"game_pc":false}""")!!.gamePc)
+    }
+
     @Test fun versionAnswerThatIsNotOutriders() {
         assertNull(VersionInfo.parse("<html>hello</html>"))
         assertNull(VersionInfo.parse("""{"status":"ok"}"""))
