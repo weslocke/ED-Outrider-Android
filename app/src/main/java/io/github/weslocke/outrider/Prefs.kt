@@ -17,9 +17,32 @@ class Prefs(context: Context) {
             else putString(KEY_HOST, value.host).putInt(KEY_PORT, value.port)
         }
 
+    /** The session token for the current Outrider (each saved Outrider keeps its own). */
     var token: String?
-        get() = sp.getString(KEY_TOKEN, null)
-        set(value) = sp.edit { if (value == null) remove(KEY_TOKEN) else putString(KEY_TOKEN, value) }
+        get() = address?.let { tokens()[it.origin] }
+        set(value) {
+            val origin = address?.origin ?: return
+            val t = tokens()
+            if (value == null) t.remove(origin) else t[origin] = value
+            sp.edit { putString(KEY_TOKENS, Servers.tokensToJson(t)) }
+        }
+
+    private fun tokens(): MutableMap<String, String> {
+        val t = Servers.tokensFromJson(sp.getString(KEY_TOKENS, null))
+        // 1.0.0 kept one token: it belongs to the address saved alongside it
+        val legacy = sp.getString(KEY_TOKEN, null)
+        val origin = address?.origin
+        if (legacy != null) {
+            if (origin != null && origin !in t) t[origin] = legacy
+            sp.edit { remove(KEY_TOKEN).putString(KEY_TOKENS, Servers.tokensToJson(t)) }
+        }
+        return t
+    }
+
+    /** The Outriders connected to before, most recent first (see [Servers]). */
+    var saved: List<SavedServer>
+        get() = Servers.fromJson(sp.getString(KEY_SAVED, null))
+        set(value) = sp.edit { putString(KEY_SAVED, Servers.toJson(value)) }
 
     var theme: String?
         get() = sp.getString(KEY_THEME, null)
@@ -50,7 +73,9 @@ class Prefs(context: Context) {
         const val KEY_MIC_ASKED = "mic_asked"
         const val KEY_HOST = "host"
         const val KEY_PORT = "port"
-        const val KEY_TOKEN = "token"
+        const val KEY_TOKEN = "token"   // 1.0.0's single token, moved into KEY_TOKENS on first read
+        const val KEY_TOKENS = "tokens"
+        const val KEY_SAVED = "saved_servers"
         const val KEY_THEME = "theme"
     }
 }

@@ -251,6 +251,7 @@ class MainActivity : ComponentActivity() {
                 retryIndex = 0
                 val info = result.value
                 lastVersion = info
+                prefs.saved = Servers.remember(prefs.saved, address, info.gamePc)
                 when (val verdict = Versions.check(info, appVersion)) {
                     is Versions.Verdict.UpdateApp -> showUpdate(app = true, verdict.reason)
                     is Versions.Verdict.UpdateOutrider -> showUpdate(app = false, verdict.reason)
@@ -446,12 +447,45 @@ class MainActivity : ComponentActivity() {
 
     // ---- session --------------------------------------------------------------------------------------------
 
-    /** Drops the token and the WebView's session cookie (the WebView only ever holds Outrider's cookies). */
+    /** Drops the current Outrider's token and session cookie; other saved Outriders stay signed in. */
     private fun forgetSession() {
         prefs.token = null
-        CookieManager.getInstance().removeAllCookies(null)
-        CookieManager.getInstance().flush()
+        prefs.address?.let { address ->
+            // CookieManager can't remove one site's cookies, so expire each of them by name
+            val cookies = CookieManager.getInstance()
+            val url = address.origin + "/"
+            cookies.getCookie(url)?.split(';')?.map { it.substringBefore('=').trim() }?.filter { it.isNotEmpty() }?.forEach {
+                cookies.setCookie(url, "$it=; Max-Age=0; Path=/")
+            }
+            cookies.flush()
+        }
         pageLoaded = false
+    }
+
+    /** Goes to another saved Outrider: its own session (if any) comes with it. */
+    private fun switchTo(address: ServerAddress) {
+        generation++
+        destroyWebView()
+        lastVersion = null
+        prefs.address = address
+        connect()
+    }
+
+    /** Buttons for the other saved Outriders; a long press forgets one. */
+    private fun savedChoices(): List<Screen.Button> {
+        val current = prefs.address
+        return prefs.saved.filter { it.address != current }.map { s ->
+            Screen.Button(s.label, primary = false, onLongClick = {
+                prefs.saved = Servers.forget(prefs.saved, s.address)
+                toast("Forgot ${s.address.display}")
+                when (state) {
+                    State.MENU -> showMenu()
+                    State.SETUP -> showSetup()
+                    State.SIGN_IN -> showSignIn(null)
+                    else -> showNoLink(noLinkReason)
+                }
+            }) { switchTo(s.address) }
+        }
     }
 
     private fun signIn(address: ServerAddress, password: String) {
@@ -529,13 +563,8 @@ class MainActivity : ComponentActivity() {
             when (val parsed = ServerAddress.parse(s.field?.text?.toString() ?: "")) {
                 is ServerAddress.Parsed.Invalid -> s.setError(parsed.reason)
                 is ServerAddress.Parsed.Ok -> {
-                    if (parsed.address != current) {
-                        // a session belongs to one Outrider
-                        forgetSession()
-                        destroyWebView()
-                        prefs.address = parsed.address
-                    }
-                    connect()
+                    // each Outrider keeps its own session, so changing address signs nothing out
+                    if (parsed.address != current) switchTo(parsed.address) else connect()
                 }
             }
         }
@@ -547,6 +576,8 @@ class MainActivity : ComponentActivity() {
                 "Outrider uses port ${ServerAddress.DEFAULT_PORT}; for another port add it: 192.168.1.20:8100.",
             field = Screen.Field(hint = "192.168.1.20", text = current?.display ?: "", onDone = { save() }),
             buttons = buttons,
+            choices = savedChoices(),
+            choicesLabel = "Or connect to one used before (a long press forgets it):",
             footer = "ED Outrider for Android $appVersion",
         ))
         focusField(s)
@@ -570,6 +601,8 @@ class MainActivity : ComponentActivity() {
                 Screen.Button("Sign in") { submit() },
                 Screen.Button("Settings", primary = false) { showSetup() },
             ),
+            choices = savedChoices(),
+            choicesLabel = "Or switch to:",
             footer = footer(),
         ))
         focusField(s)
@@ -605,6 +638,8 @@ class MainActivity : ComponentActivity() {
                 Screen.Button("Retry now") { connect() },
                 Screen.Button("Settings", primary = false) { showSetup() },
             ),
+            choices = savedChoices(),
+            choicesLabel = "Or switch to:",
             footer = footer(),
         ))
         main.removeCallbacks(retryTick)
@@ -645,6 +680,8 @@ class MainActivity : ComponentActivity() {
             body = "Connected to ${prefs.address?.display}." +
                 if (lastVersion?.gamePc == false) "\nOutrider on a server: no game buttons (they need Outrider on the game PC)." else "",
             buttons = buttons,
+            choices = savedChoices(),
+            choicesLabel = "Switch to (a long press forgets one):",
             footer = footer(),
         ))
     }

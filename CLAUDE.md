@@ -16,7 +16,9 @@ page <-> app bridge; the design history is in the author's (unpublished) Outride
 - `OutriderApi.kt`: the app's own HTTP calls (blocking; run off the main thread).
 - `ServerAddress.kt`: parsing the typed address, and `isSameOrigin`, the guard on everything loaded or called.
 - `Bridge.kt`: `window.OutriderApp` (a document-start script + an origin-restricted web message listener).
-- `Prefs.kt`: what the app keeps (address, token, theme, wake-word settings); never the password.
+- `Prefs.kt`: what the app keeps (address, a token per Outrider, saved Outriders, theme, wake-word settings); never
+  the password.
+- `Servers.kt`: the saved Outriders (most recent first, at most 4, game PC or server) and the per-Outrider tokens.
 - `Ui.kt`, `AppTheme.kt`: the app's own screens, coloured and framed by the page's theme (lcars / elite / babylon5 /
   narn / sith / alliance / dark, the same palettes as Outrider's `static/themes/`).
 - `Voice.kt`: one spoken question through Android's speech recognizer, and its pure helpers (`Speech`).

@@ -47,6 +47,7 @@ the tablet sleeps, and listens for your voice.
 | 🔒 **Signs in once** | When Outrider asks devices on the network for a password, the app signs in and stays signed in until it changes. |
 | 🔁 **Reconnects** | Says plainly when Outrider can't be reached, and picks up again by itself when it's back. |
 | ⬇️ **Exports** | Outrider's CSV and JSON exports save to the tablet's Downloads. |
+| 🔀 **More than one Outrider** | Remembers the Outriders it has used (say one on the game PC and one on a server) and switches between them from the Back menu, each staying signed in. |
 
 <p align="center">
   <img src="docs/images/tablet-babylon5.webp" alt="The Babylon 5 theme: Nearby, the ship controls, and a spoken status report in the footer" width="440">
@@ -88,6 +89,10 @@ has a `[server] password`, the app asks for it once.
 
 **Using it.** The tablet layout is Outrider's: tap the groups on the left, the pages under them, rows for details.
 Press **Back** for the app's own menu: back to Outrider, reload, ask, voice, settings, sign out.
+
+**More than one Outrider.** The app remembers the last four Outriders it connected to, labelled *game PC* or
+*server* from what each says about itself. Switch between them from the Back menu (or the address screen, or when one
+isn't answering); each keeps its own sign-in. A long press on one forgets it.
 
 ## Voice
 

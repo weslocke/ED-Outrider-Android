@@ -31,7 +31,12 @@ import androidx.core.graphics.ColorUtils
  */
 class Screen(private val context: Context, private val theme: AppTheme, spec: Spec) {
 
-    data class Button(val label: String, val primary: Boolean = true, val onClick: () -> Unit)
+    data class Button(
+        val label: String,
+        val primary: Boolean = true,
+        val onLongClick: (() -> Unit)? = null,
+        val onClick: () -> Unit,
+    )
 
     data class Field(
         val hint: String,
@@ -47,6 +52,9 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
         val field: Field? = null,
         val error: String? = null,
         val buttons: List<Button> = emptyList(),
+        /** A second row under the buttons (saved Outriders), with a caption above it. */
+        val choices: List<Button> = emptyList(),
+        val choicesLabel: String? = null,
         /** Small print at the bottom: versions, the address. */
         val footer: String? = null,
     )
@@ -102,6 +110,21 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
                 row.addView(button(context, b), LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT, 64.dp(),
                 ).apply { if (i > 0) leftMargin = 16.dp() })
+            }
+            column.addView(row)
+        }
+
+        if (spec.choices.isNotEmpty()) {
+            spec.choicesLabel?.let {
+                column.addView(text(it, 18f, ColorUtils.setAlphaComponent(theme.text, 0xC0), condensed).apply { setPadding(0, 28.dp(), 0, 0) })
+            }
+            val row = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, 12.dp(), 0, 0)
+            }
+            spec.choices.forEachIndexed { i, b ->
+                row.addView(button(context, b), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 56.dp())
+                    .apply { if (i > 0) leftMargin = 16.dp() })
             }
             column.addView(row)
         }
@@ -188,6 +211,7 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
         isClickable = true
         isFocusable = true
         setOnClickListener { b.onClick() }
+        b.onLongClick?.let { long -> setOnLongClickListener { long(); true } }
     }
 
     private fun pill(color: Int) = GradientDrawable().apply {
