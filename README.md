@@ -201,6 +201,7 @@ python3 tools/fake_outrider.py --old            # no /api/version: "update Outri
 python3 tools/fake_outrider.py --server-mode    # Outrider on a server: no game buttons
 python3 tools/fake_outrider.py --unspoken       # answers Outrider couldn't speak: the tablet reads them
 python3 tools/fake_outrider.py --slow 5         # a slow /api/ask (also --ask-429, --redirect)
+python3 tools/fake_outrider.py --theme sith     # the test page sets the app's theme as it loads
 python3 tools/fake_outrider.py --selftest       # check the fake itself
 ```
 

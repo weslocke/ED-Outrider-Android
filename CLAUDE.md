@@ -45,7 +45,7 @@ Elsewhere:
 - `app/src/test/`: JVM unit tests (junit 4, the real org.json). `TestHttpServer` is a small socket server for
   `OutriderApiTest` (`com.sun.net.httpserver` isn't on the Android unit-test classpath).
 - `tools/fake_outrider.py`: a stand-in Outrider (contract, `/api/ask`, a test page) on port 8026; `--server-mode`,
-  `--slow N`, `--unspoken`, `--ask-429`, `--redirect` for the awkward cases, `--selftest` to check itself.
+  `--slow N`, `--unspoken`, `--ask-429`, `--redirect` for the awkward cases, `--theme NAME` for the app's screens, `--selftest` to check itself.
 - `design/launcher-icon.svg`: the icon's source; `app/src/main/res/drawable/ic_launcher_*.xml` are hand-converted
   from it (keep them in step).
 - `docs/images/`: README images.

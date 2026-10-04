@@ -22,6 +22,7 @@ Outrider's port). Requests from 127.0.0.1/::1 need no session, like the real Out
     python3 tools/fake_outrider.py --unspoken         # /api/ask answers with spoken false (no PC window speaking)
     python3 tools/fake_outrider.py --ask-429          # /api/ask is rate limited
     python3 tools/fake_outrider.py --redirect         # every request answers 301 to https (a proxy)
+    python3 tools/fake_outrider.py --theme sith       # the test page sets the app's theme when it loads
     python3 tools/fake_outrider.py --selftest         # check the stand-in's own answers, then exit
 """
 import argparse
@@ -151,7 +152,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._error(401, "signin_required", "Sign in first.")
             return self._send(401, "<h1>Sign in required</h1>", "text/html")
         if path in ("/", "/tablet"):
-            return self._send(200, TEST_PAGE.replace("__OUTRIDER__", args.outrider), "text/html")
+            return self._send(200, TEST_PAGE.replace("__OUTRIDER__", args.outrider).replace("__THEME__", json.dumps(args.theme or "")), "text/html")
         if path == "/api/ping":
             return self._json(200, {"ok": True, "time": time.strftime("%H:%M:%S")})
         if path == "/api/export.csv":
@@ -266,7 +267,8 @@ TEST_PAGE = r"""<!doctype html>
   try { const n = +(localStorage.getItem("visits") || 0) + 1; localStorage.setItem("visits", n); $("visits").textContent = n; } catch (e) { $("visits").textContent = "unavailable"; }
   $("otherport").href = location.protocol + "//" + location.hostname + ":9/";
   function haptic() { if (A && A.haptic) { A.haptic(30); log("haptic(30) sent"); } else if (navigator.vibrate) { navigator.vibrate(30); log("navigator.vibrate"); } }
-  function theme() { if (A && A.setTheme) { A.setTheme("lcars"); log("setTheme(lcars)"); } }
+  function theme(name) { name = name || "lcars"; if (A && A.setTheme) { A.setTheme(name); log("setTheme(" + name + ")"); } }
+  if (__THEME__) theme(__THEME__);
   let last = 0;
   async function ping(verbose) {
     try {
@@ -298,6 +300,8 @@ def main():
     p.add_argument("--unspoken", action="store_true", help='/api/ask answers with "spoken": false')
     p.add_argument("--ask-429", action="store_true", help="/api/ask answers 429 rate_limited")
     p.add_argument("--redirect", action="store_true", help="every request answers 301 to https")
+    p.add_argument("--theme", choices=["lcars", "elite", "babylon5", "narn", "sith", "alliance", "dark"],
+                   help="the test page calls setTheme(THEME) when it loads")
     p.add_argument("--selftest", action="store_true", help="check the stand-in on a spare loopback port, then exit")
     args = p.parse_args()
     if args.selftest:
@@ -316,7 +320,7 @@ def main():
 def selftest():
     """Runs the stand-in on spare loopback ports and checks the contract shapes the app relies on."""
     defaults = dict(host="127.0.0.1", port=0, password="test", outrider="t", api=1, min_app="1.0.0", old=False,
-                    no_tablet=False, server_mode=False, slow=0, unspoken=False, ask_429=False, redirect=False)
+                    no_tablet=False, server_mode=False, slow=0, unspoken=False, ask_429=False, redirect=False, theme=None)
 
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *a, **k):
