@@ -35,6 +35,25 @@ class Prefs(context: Context) {
         return merged.toMutableMap()
     }
 
+    /** The current Outrider's sign-in cookie lines (see [Servers.cookiesToJson]). */
+    var cookieLines: List<String>
+        get() = address?.let { Servers.cookiesFromJson(sp.getString(KEY_COOKIES, null))[it.origin] } ?: emptyList()
+        set(value) {
+            val origin = address?.origin ?: return
+            val c = Servers.cookiesFromJson(sp.getString(KEY_COOKIES, null))
+            if (value.isEmpty()) c.remove(origin) else c[origin] = value
+            sp.edit { putString(KEY_COOKIES, Servers.cookiesToJson(c)) }
+        }
+
+    /** Drops everything kept for one Outrider: its token and its cookie lines (when it is forgotten). */
+    fun forgetSessionOf(origin: String) {
+        val t = tokens()
+        t.remove(origin)
+        val c = Servers.cookiesFromJson(sp.getString(KEY_COOKIES, null))
+        c.remove(origin)
+        sp.edit { putString(KEY_TOKENS, Servers.tokensToJson(t)).putString(KEY_COOKIES, Servers.cookiesToJson(c)) }
+    }
+
     /** The Outriders connected to before, most recent first (see [Servers]). */
     var saved: List<SavedServer>
         get() = Servers.fromJson(sp.getString(KEY_SAVED, null))
@@ -71,6 +90,7 @@ class Prefs(context: Context) {
         const val KEY_PORT = "port"
         const val KEY_TOKEN = "token"   // 1.0.0's single token, moved into KEY_TOKENS on first read
         const val KEY_TOKENS = "tokens"
+        const val KEY_COOKIES = "cookies"
         const val KEY_SAVED = "saved_servers"
         const val KEY_THEME = "theme"
     }

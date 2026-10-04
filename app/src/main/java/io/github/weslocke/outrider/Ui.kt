@@ -73,6 +73,8 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
     val field: EditText?
     private val bodyView: TextView
     private val errorView: TextView
+    private lateinit var choicesLabel: TextView
+    private lateinit var choicesRow: LinearLayout
 
     init {
         val frame = FrameLayout(context).apply { background = FrameDrawable(theme, dp(1f)) }
@@ -114,20 +116,17 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
             column.addView(row)
         }
 
-        if (spec.choices.isNotEmpty()) {
-            spec.choicesLabel?.let {
-                column.addView(text(it, 18f, ColorUtils.setAlphaComponent(theme.text, 0xC0), condensed).apply { setPadding(0, 28.dp(), 0, 0) })
-            }
-            val row = LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                setPadding(0, 12.dp(), 0, 0)
-            }
-            spec.choices.forEachIndexed { i, b ->
-                row.addView(button(context, b), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 56.dp())
-                    .apply { if (i > 0) leftMargin = 16.dp() })
-            }
-            column.addView(row)
+        // the saved-Outrider row: always made, hidden while empty, so [setChoices] can refresh it in place
+        choicesLabel = text(spec.choicesLabel ?: "", 18f, ColorUtils.setAlphaComponent(theme.text, 0xC0), condensed).apply {
+            setPadding(0, 28.dp(), 0, 0)
         }
+        column.addView(choicesLabel)
+        choicesRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 12.dp(), 0, 0)
+        }
+        column.addView(choicesRow)
+        setChoices(spec.choices, hasLabel = spec.choicesLabel != null)
 
         spec.footer?.let {
             column.addView(View(context), LinearLayout.LayoutParams(0, 0, 1f))
@@ -136,6 +135,18 @@ class Screen(private val context: Context, private val theme: AppTheme, spec: Sp
             })
         }
         view = frame
+    }
+
+    /** Replaces the saved-Outrider buttons (e.g. after one is forgotten) without rebuilding the screen. */
+    fun setChoices(choices: List<Button>, hasLabel: Boolean = choicesLabel.text.isNotEmpty()) {
+        choicesRow.removeAllViews()
+        choices.forEachIndexed { i, b ->
+            choicesRow.addView(button(context, b), LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 56.dp())
+                .apply { if (i > 0) leftMargin = 16.dp() })
+        }
+        val show = choices.isNotEmpty()
+        choicesRow.visibility = if (show) View.VISIBLE else View.GONE
+        choicesLabel.visibility = if (show && hasLabel) View.VISIBLE else View.GONE
     }
 
     fun setBody(text: CharSequence) {

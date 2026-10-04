@@ -75,5 +75,24 @@ object Servers {
     fun migrateLegacyToken(tokens: Map<String, String>, legacy: String?, origin: String?): Map<String, String> =
         if (legacy.isNullOrEmpty() || origin == null || origin in tokens) tokens else tokens + (origin to legacy)
 
+    /** The sign-in cookie lines each Outrider sent, by origin: put back when switching to it (cookies are per host). */
+    fun cookiesToJson(cookies: Map<String, List<String>>): String =
+        JSONObject().apply { for ((k, v) in cookies) put(k, JSONArray(v)) }.toString()
+
+    fun cookiesFromJson(json: String?): MutableMap<String, List<String>> {
+        val out = mutableMapOf<String, List<String>>()
+        if (json.isNullOrBlank()) return out
+        try {
+            val o = JSONObject(json)
+            for (k in o.keys()) {
+                val a = o.optJSONArray(k) ?: continue
+                out[k] = (0 until a.length()).mapNotNull { i -> a.optString(i).takeIf { it.isNotEmpty() } }
+            }
+        } catch (e: JSONException) {
+            // unreadable: nothing to put back; the page asks to sign in again if it must
+        }
+        return out
+    }
+
     fun tokensToJson(tokens: Map<String, String>): String = JSONObject(tokens as Map<*, *>).toString()
 }

@@ -59,7 +59,7 @@ import kotlin.math.ceil
  */
 class MainActivity : ComponentActivity() {
 
-    private enum class State { SETUP, CONNECTING, NO_LINK, UPDATE, SIGN_IN, PAGE, MENU }
+    private enum class State { SETUP, VOICE, CONNECTING, NO_LINK, UPDATE, SIGN_IN, PAGE, MENU }
 
     private lateinit var prefs: Prefs
     private lateinit var root: FrameLayout
@@ -75,10 +75,22 @@ class MainActivity : ComponentActivity() {
 
     private var lastVersion: VersionInfo? = null
 
+    /** Short calls: version, sign-in, sign-out. */
     private val io: ExecutorService = Executors.newSingleThreadExecutor()
+    /** /api/ask alone: it may wait up to 45 s on Outrider's AI layer, and must not hold up reconnecting. */
+    private val askIo: ExecutorService = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
     /** Bumped by every [connect]; a network answer for an older generation is dropped. */
     private var generation = 0
+    /** Bumped when a question is cancelled or the Outrider changes: an older answer only clears its overlay. */
+    private var askGeneration = 0
+    /** Set in onDestroy: answers still on their way must not touch the finished activity. */
+    private var destroyed = false
+    /** When the page last reported 401s that /api/version then contradicted (the reload-loop guard). */
+    private val pageUnauthorized = ArrayDeque<Long>()
+    /** Page events that arrived while the user was typing on one of the app's screens, acted on when they leave. */
+    private var pendingSignIn = false
+    private var pendingReconnect = false
 
     // asking by voice: the wake word (or the Ask button) starts one spoken question, its progress in a small
     // overlay over the page; while the wake word listens, a small indicator shows it
@@ -167,6 +179,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         resumed = true
+        updateKeepScreenOn()
         voiceIdle()
         hideSystemBars()
         web?.onResume()
@@ -176,6 +189,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         resumed = false
+        main.removeCallbacks(retryTick)   // no probing in the background; onResume reconnects from No link
         stopWake()
         if (listener.active) {
             listener.cancel()
@@ -189,10 +203,14 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        destroyed = true
+        generation++
+        askGeneration++
         listener.cancel()
         wake.release()
         main.removeCallbacksAndMessages(null)
         io.shutdownNow()
+        askIo.shutdownNow()
         web?.destroy()
         web = null
         super.onDestroy()
@@ -213,10 +231,35 @@ class MainActivity : ComponentActivity() {
     private fun onBack(callback: OnBackPressedCallback) {
         when (state) {
             State.PAGE -> showMenu()
-            State.MENU -> backToPage()
+            State.MENU, State.VOICE -> backToPage()
             State.SETUP -> if (prefs.address != null) connect() else leave(callback)
             else -> leave(callback)
         }
+    }
+
+    /** Runs [block] on [executor], or nothing once the activity is finishing (no RejectedExecutionException). */
+    private fun background(executor: ExecutorService, block: () -> Unit) {
+        if (destroyed) return
+        try {
+            executor.execute(block)
+        } catch (e: java.util.concurrent.RejectedExecutionException) {
+            Log.w(TAG, "background work after shutdown dropped")
+        }
+    }
+
+    /** Posts [block] to the main thread unless the activity has been destroyed by then. */
+    private fun onMain(block: () -> Unit) {
+        main.post { if (!destroyed) block() }
+    }
+
+    /** The app's screens where someone may be typing: page events wait until they leave. */
+    private fun typing() = state == State.SETUP || state == State.VOICE || state == State.SIGN_IN
+
+    /** Keep the screen on over the page and while (re)connecting; let it sleep on the app's settings screens. */
+    private fun updateKeepScreenOn() {
+        val on = state == State.PAGE || state == State.CONNECTING || state == State.NO_LINK
+        if (on) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     private fun leave(callback: OnBackPressedCallback) {
@@ -229,6 +272,7 @@ class MainActivity : ComponentActivity() {
 
     /** Asks /api/version and goes wherever the answer leads. [quiet] keeps the current screen while it asks. */
     private fun connect(quiet: Boolean = false) {
+        if (destroyed) return
         val address = prefs.address ?: return showSetup()
         val gen = ++generation
         main.removeCallbacks(retryTick)
@@ -239,9 +283,9 @@ class MainActivity : ComponentActivity() {
             buttons = listOf(Screen.Button("Settings", primary = false) { showSetup() }),
         ))
         val api = OutriderApi(address, prefs.token, appVersion)
-        io.execute {
+        background(io) {
             val result = api.version()
-            main.post { if (gen == generation) onVersion(address, result) }
+            onMain { if (gen == generation) onVersion(address, result) }
         }
     }
 
@@ -249,10 +293,16 @@ class MainActivity : ComponentActivity() {
         if (result is OutriderApi.Result.Ok) {
             retryIndex = 0
             lastVersion = result.value
-            prefs.saved = Servers.remember(prefs.saved, address, result.value.gamePc)
+            val before = prefs.saved
+            prefs.saved = Servers.remember(before, address, result.value.gamePc)
+            // one that fell off the list of four is forgotten entirely, its session too
+            for (gone in before.map { it.address } - prefs.saved.map { it.address }.toSet()) prefs.forgetSessionOf(gone.origin)
         }
         when (val step = Flow.afterVersion(address, result, prefs.token != null, appVersion)) {
-            Flow.Step.Page -> showPage()
+            Flow.Step.Page -> {
+                if (result is OutriderApi.Result.Ok && !result.value.signedIn && !result.value.password) pageUnauthorized.clear()
+                showPage()
+            }
             is Flow.Step.SignIn -> {
                 if (step.forgetToken) forgetSession()
                 showSignIn(step.note)
@@ -269,8 +319,10 @@ class MainActivity : ComponentActivity() {
         if (web == null || webAddress != address) createWebView(address)
         hideScreen()
         state = State.PAGE
+        updateKeepScreenOn()
         if (reload || !pageLoaded) {
             pageLoaded = true
+            restoreCookies(address)
             web?.loadUrl(address.url("/tablet"))
         }
         askMicOnce()
@@ -278,10 +330,37 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun backToPage() {
-        if (web != null && pageLoaded) {
-            hideScreen()
-            state = State.PAGE
-        } else connect()
+        when {
+            // something the page said while the user was typing on one of the app's screens
+            pendingSignIn -> {
+                pendingSignIn = false
+                pendingReconnect = false
+                forgetSession()
+                showSignIn("Outrider asked this tablet to sign in again.")
+            }
+            pendingReconnect -> {
+                pendingReconnect = false
+                connect()
+            }
+            web != null && pageLoaded -> {
+                hideScreen()
+                state = State.PAGE
+                updateKeepScreenOn()
+            }
+            else -> connect()
+        }
+    }
+
+    /**
+     * Puts this Outrider's own sign-in cookie back before its page loads: cookies are per host, so two Outriders on
+     * one PC (different ports) would otherwise overwrite each other's and loop on 401s.
+     */
+    private fun restoreCookies(address: ServerAddress) {
+        val lines = prefs.cookieLines
+        if (lines.isEmpty()) return
+        val cookies = CookieManager.getInstance()
+        for (line in lines) cookies.setCookie(address.origin + "/", line)
+        cookies.flush()
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -312,6 +391,8 @@ class MainActivity : ComponentActivity() {
             download(address, url, userAgent, contentDisposition, mimeType)
         }
         webHost.addView(w, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        // pauseTimers() is process-wide: a WebView made while resumed must not inherit a pause from an older one
+        if (resumed) w.resumeTimers()
         web = w
         webAddress = address
         pageLoaded = false
@@ -348,6 +429,10 @@ class MainActivity : ComponentActivity() {
                 // The page keeps polling under the sign-in screen and asks again on every 401: rebuilding the
                 // screen each time would wipe a half-typed password.
                 if (state == State.SIGN_IN) return
+                if (typing()) {
+                    pendingSignIn = true
+                    return
+                }
                 forgetSession()
                 showSignIn("Outrider asked this tablet to sign in again.")
             }
@@ -373,6 +458,10 @@ class MainActivity : ComponentActivity() {
         override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
             if (!request.isForMainFrame || view !== web) return
             pageLoaded = false
+            if (typing()) {
+                pendingReconnect = true
+                return
+            }
             showNoLink(when (error.errorCode) {
                 ERROR_CONNECT -> OutriderApi.reason(java.net.ConnectException())
                 ERROR_TIMEOUT -> OutriderApi.reason(java.net.SocketTimeoutException())
@@ -383,11 +472,33 @@ class MainActivity : ComponentActivity() {
 
         override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
             if (!request.isForMainFrame || view !== web) return
+            val now = SystemClock.elapsedRealtime()
+            while (pageUnauthorized.isNotEmpty() && now - pageUnauthorized.first() > Flow.UNAUTHORIZED_WINDOW_MS) pageUnauthorized.removeFirst()
+            val step = Flow.afterPageHttpError(address, request.url.toString(), response.statusCode, pageUnauthorized.size)
+            if (step is Flow.PageError.Notice) {
+                // a link the page followed, not the tablet page: say so and go back to the page
+                toast(step.text)
+                if (view.canGoBack()) view.goBack() else showPage(reload = true)
+                return
+            }
             pageLoaded = false
-            when (response.statusCode) {
-                401 -> connect() // the session is gone: /api/version says so and sign-in follows
-                404 -> showUpdate(app = false, "Outrider at ${address.display} has no tablet page (/tablet) yet.")
-                else -> showNoLink("Outrider answered HTTP ${response.statusCode} for the tablet page.")
+            if (typing()) {
+                pendingReconnect = true
+                return
+            }
+            when (step) {
+                Flow.PageError.Reconnect -> {
+                    pageUnauthorized.addLast(now)
+                    connect() // the session is gone: /api/version says so and sign-in follows
+                }
+                is Flow.PageError.SignIn -> {
+                    pageUnauthorized.clear()
+                    forgetSession()
+                    showSignIn(step.note)
+                }
+                is Flow.PageError.Update -> showUpdate(app = false, step.reason)
+                is Flow.PageError.NoLink -> showNoLink(step.reason)
+                is Flow.PageError.Notice -> {}
             }
         }
 
@@ -439,6 +550,7 @@ class MainActivity : ComponentActivity() {
     /** Drops the current Outrider's token and session cookie; other saved Outriders stay signed in. */
     private fun forgetSession() {
         prefs.token = null
+        prefs.cookieLines = emptyList()
         prefs.address?.let { address ->
             // CookieManager can't remove one site's cookies, so expire each of them by name
             val cookies = CookieManager.getInstance()
@@ -454,6 +566,10 @@ class MainActivity : ComponentActivity() {
     /** Goes to another saved Outrider: its own session (if any) comes with it. */
     private fun switchTo(address: ServerAddress) {
         generation++
+        askGeneration++   // an answer for the old Outrider must not act on the new one
+        pageUnauthorized.clear()
+        pendingSignIn = false
+        pendingReconnect = false
         destroyWebView()
         lastVersion = null
         prefs.address = address
@@ -465,15 +581,26 @@ class MainActivity : ComponentActivity() {
         val current = prefs.address
         return prefs.saved.filter { it.address != current }.map { s ->
             Screen.Button(s.label, primary = false, onLongClick = {
-                prefs.saved = Servers.forget(prefs.saved, s.address)
+                forgetOutrider(s.address)
                 toast("Forgot ${s.address.display}")
-                when (state) {
-                    State.MENU -> showMenu()
-                    State.SETUP -> showSetup()
-                    State.SIGN_IN -> showSignIn(null)
-                    else -> showNoLink(noLinkReason)
-                }
+                // refresh the row in place: rebuilding No link would also restart its retry countdown
+                screen?.setChoices(savedChoices())
             }) { switchTo(s.address) }
+        }
+    }
+
+    /** Forgets a saved Outrider and its session; its cookies go too unless another Outrider shares the host. */
+    private fun forgetOutrider(address: ServerAddress) {
+        prefs.saved = Servers.forget(prefs.saved, address)
+        prefs.forgetSessionOf(address.origin)
+        val sharesHost = prefs.address?.host == address.host || prefs.saved.any { it.address.host == address.host }
+        if (!sharesHost) {
+            val cookies = CookieManager.getInstance()
+            val url = address.origin + "/"
+            cookies.getCookie(url)?.split(';')?.map { it.substringBefore('=').trim() }?.filter { it.isNotEmpty() }?.forEach {
+                cookies.setCookie(url, "$it=; Max-Age=0; Path=/")
+            }
+            cookies.flush()
         }
     }
 
@@ -486,9 +613,9 @@ class MainActivity : ComponentActivity() {
         screen?.setBody("Signing in…")
         val gen = ++generation
         val api = OutriderApi(address, null, appVersion)
-        io.execute {
+        background(io) {
             val result = api.signIn(password)
-            main.post { if (gen == generation) onSignIn(address, result) }
+            onMain { if (gen == generation) onSignIn(address, result) }
         }
     }
 
@@ -497,6 +624,8 @@ class MainActivity : ComponentActivity() {
         when (result) {
             is OutriderApi.Result.Ok -> {
                 prefs.token = result.value
+                prefs.cookieLines = result.setCookies
+                pageUnauthorized.clear()
                 val cookies = CookieManager.getInstance()
                 result.setCookies.forEach { cookies.setCookie(address.origin + "/", it) }
                 cookies.flush()
@@ -517,7 +646,7 @@ class MainActivity : ComponentActivity() {
     private fun signOut() {
         val address = prefs.address ?: return
         val api = OutriderApi(address, prefs.token, appVersion)
-        io.execute { api.signOut() } // best effort: the token is forgotten here either way
+        background(io) { api.signOut() } // best effort: the token is forgotten here either way
         forgetSession()
         showSignIn("Signed out.")
     }
@@ -532,6 +661,7 @@ class MainActivity : ComponentActivity() {
         root.addView(s.view, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         screen = s
         state = newState
+        updateKeepScreenOn()
         voiceIdle()   // the wake word listens over the page only
         return s
     }
@@ -651,11 +781,8 @@ class MainActivity : ComponentActivity() {
     private fun showMenu() {
         val buttons = mutableListOf(
             Screen.Button("Back to Outrider") { backToPage() },
-            Screen.Button("Reload", primary = false) {
-                hideScreen()
-                state = State.PAGE
-                web?.reload()
-            },
+            // through showPage: it recreates the WebView if its renderer died while the menu was up
+            Screen.Button("Reload", primary = false) { showPage(reload = true) },
             Screen.Button("Settings", primary = false) { showSetup() },
         )
         buttons += Screen.Button("Ask", primary = false) {
@@ -737,6 +864,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun onWake() {
+        if (!resumed) return   // a match posted just before the app went to the background
         if (state != State.PAGE || asking) return voiceIdle()
         startAsk()
     }
@@ -796,7 +924,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         val mic = if (micGranted()) "" else "\n\nThe microphone isn't allowed yet: Save asks for it."
-        s = show(State.SETUP, Screen.Spec(
+        s = show(State.VOICE, Screen.Spec(
             title = "Voice",
             body = "Say OK, Hey or Hello and the wake word, wait for LISTENING, then ask: a status report, fuel, " +
                 "unsold, the next jump, what's left here, the nearest unvisited system, hush or unhush. Outrider " +
@@ -817,9 +945,15 @@ class MainActivity : ComponentActivity() {
         val address = prefs.address ?: return
         showOverlay("“$text” · asking Outrider…", hold = true)
         val api = OutriderApi(address, prefs.token, appVersion)
-        io.execute {
+        val gen = askGeneration
+        background(askIo) {
             val result = api.ask(text)
-            main.post {
+            onMain {
+                if (gen != askGeneration || address != prefs.address) {
+                    // cancelled, or the tablet moved to another Outrider meanwhile: only tidy up
+                    voiceOverlay.visibility = View.GONE
+                    return@onMain
+                }
                 asking = false
                 main.postDelayed({ voiceIdle() }, 1500)   // a moment for the PC to start answering aloud
                 when (result) {

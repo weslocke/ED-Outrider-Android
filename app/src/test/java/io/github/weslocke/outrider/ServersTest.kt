@@ -46,6 +46,12 @@ class ServersTest {
         assertEquals(mapOf(nas.origin to "x"), Servers.migrateLegacyToken(mapOf(nas.origin to "x"), null, pc.origin))
     }
 
+    @Test fun cookieLinesPerOutrider() {
+        val c = mapOf(pc.origin to listOf("outrider_session=a; HttpOnly; Path=/"), nas.origin to listOf("x=1", "y=2"))
+        assertEquals(c, Servers.cookiesFromJson(Servers.cookiesToJson(c)))
+        assertEquals(emptyMap<String, List<String>>(), Servers.cookiesFromJson("nope"))
+    }
+
     @Test fun tokensPerOutrider() {
         val t = mapOf(pc.origin to "abc", nas.origin to "def")
         assertEquals(t, Servers.tokensFromJson(Servers.tokensToJson(t)))
