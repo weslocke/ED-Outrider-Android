@@ -8,8 +8,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-// The app's version: the build number is derived from it (1.2.0 -> 10200), so the two can't drift apart.
-val appVersion = "1.2.0"
+// The app's version: the build number is derived from it (1.3.0 -> 10300), so the two can't drift apart.
+val appVersion = "1.3.0"
 val appVersionCode = appVersion.split('.').map { it.toInt() }.let { (major, minor, patch) -> major * 10000 + minor * 100 + patch }
 
 // The release key lives outside the repository. Its properties file (storeFile, storePassword, keyAlias,

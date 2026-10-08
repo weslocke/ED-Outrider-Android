@@ -257,6 +257,8 @@ TEST_PAGE = r"""<!doctype html>
     <button onclick="open_('openMenu')">App: menu…</button><br>
     <a class="btn" href="/api/export.csv">Download CSV</a>
     <a class="btn" href="https://example.com/">External link</a>
+    <a class="btn" href="https://github.com/weslocke/ED-Outrider-Android" target="_blank" rel="noopener">GitHub (new tab)</a>
+    <button onclick="window.open('https://github.com/weslocke/ED-Outrider', '_blank'); log('window.open')">window.open</button>
     <a class="btn" id="otherport" href="#">Other port</a>
     <button onclick="if (confirm('Confirm dialog works?')) log('confirm: yes'); else log('confirm: no')">Confirm()</button>
     <div id="log"></div>

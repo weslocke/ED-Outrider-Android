@@ -40,6 +40,7 @@ import android.view.Gravity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -59,7 +60,7 @@ import kotlin.math.ceil
  */
 class MainActivity : ComponentActivity() {
 
-    private enum class State { SETUP, VOICE, CONNECTING, NO_LINK, UPDATE, SIGN_IN, PAGE, MENU }
+    private enum class State { SETUP, VOICE, CONNECTING, NO_LINK, UPDATE, SIGN_IN, PAGE, MENU, ABOUT }
 
     private lateinit var prefs: Prefs
     private lateinit var root: FrameLayout
@@ -250,6 +251,7 @@ class MainActivity : ComponentActivity() {
         when (state) {
             State.PAGE -> showMenu()
             State.MENU, State.VOICE -> backToPage()
+            State.ABOUT -> showMenu()
             State.SETUP -> if (prefs.address != null) leaveSetup() else leave(callback)
             else -> leave(callback)
         }
@@ -485,12 +487,9 @@ class MainActivity : ComponentActivity() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val url = request.url
             if (address.isSameOrigin(url.toString())) return false
-            // Anything else leaves the app: web links open in the browser, other schemes are dropped.
-            if (url.scheme == "http" || url.scheme == "https") try {
-                startActivity(Intent(Intent.ACTION_VIEW, url))
-            } catch (e: ActivityNotFoundException) {
-                toast("No browser to open $url")
-            }
+            // Anything else leaves the app: web links open in the browser, other schemes are dropped. A
+            // target="_blank" link or window.open() lands here too (no multiple windows), so it opens the same way.
+            if (url.scheme == "http" || url.scheme == "https") openInBrowser(url)
             return true
         }
 
@@ -850,6 +849,7 @@ class MainActivity : ComponentActivity() {
         }
         buttons += Screen.Button("Voice", primary = false) { showVoice() }
         if (lastVersion?.password == true && prefs.token != null) buttons += Screen.Button("Sign out", primary = false) { signOut() }
+        buttons += Screen.Button("About", primary = false) { showAbout() }
         show(State.MENU, Screen.Spec(
             title = "ED Outrider",
             body = "Connected to ${prefs.address?.display}." +
@@ -859,6 +859,33 @@ class MainActivity : ComponentActivity() {
             choicesLabel = "Switch to (a long press forgets one):",
             footer = footer(),
         ))
+    }
+
+    /** The app and Outrider: versions, licence, and the two projects on GitHub (opened in the browser). */
+    private fun showAbout() {
+        val v = lastVersion
+        val outrider = if (v != null) "Outrider ${v.outrider} at ${prefs.address?.display} (app contract ${v.api})."
+        else "Outrider not reached yet."
+        show(State.ABOUT, Screen.Spec(
+            title = "About",
+            body = "ED Outrider for Android $appVersion: a cockpit tablet client for ED Outrider, the Elite Dangerous " +
+                "exploration assistant. $outrider\n\nFree software under the GNU GPL v2 or later. An unofficial fan " +
+                "project, not affiliated with or endorsed by Frontier Developments.",
+            buttons = listOf(
+                Screen.Button("Android app on GitHub") { openInBrowser(Project.APP_URL.toUri()) },
+                Screen.Button("ED Outrider on GitHub", primary = false) { openInBrowser(Project.OUTRIDER_URL.toUri()) },
+                Screen.Button("Back", primary = false) { showMenu() },
+            ),
+            footer = footer(),
+        ))
+    }
+
+    private fun openInBrowser(url: Uri) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, url))
+        } catch (e: ActivityNotFoundException) {
+            toast("No browser to open $url")
+        }
     }
 
     private fun footer(): String {
@@ -1098,7 +1125,8 @@ class MainActivity : ComponentActivity() {
         s = show(State.VOICE, Screen.Spec(
             title = "Voice",
             body = "Say OK, Hey or Hello and the wake word, wait for LISTENING, then ask: a status report, fuel, " +
-                "unsold, the next jump, what's left here, the nearest unvisited system, hush or unhush. Outrider " +
+                "unsold, the next jump, what's left here, the nearest unvisited system, the nearest station or carrier " +
+                "(\"nearest Vista\", \"where can I dock\"), hush or unhush. Outrider " +
                 "answers out loud in its own voice; when it can't (no PC window speaking), \"Speak answers here\" " +
                 "reads the answer on the tablet. With \"Play alerts here\" ticked in Outrider's Settings, the page " +
                 "speaks everything here in Outrider's voice instead, and this stays quiet.\n\nThe tablet listens for the wake word only while ED Outrider is on " +

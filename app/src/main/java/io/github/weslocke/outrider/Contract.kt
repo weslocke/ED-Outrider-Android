@@ -134,3 +134,9 @@ object Versions {
         else -> Verdict.Ok
     }
 }
+
+/** The two projects, for the About screen. */
+object Project {
+    const val APP_URL = "https://github.com/weslocke/ED-Outrider-Android"
+    const val OUTRIDER_URL = "https://github.com/weslocke/ED-Outrider"
+}

@@ -60,4 +60,9 @@ class ContractTest {
         assertTrue(Versions.check(info(api = 0), "1.0.0") is Versions.Verdict.UpdateOutrider)
         assertTrue(Versions.check(info(minApp = "1.1.0"), "1.0.9") is Versions.Verdict.UpdateApp)
     }
+
+    @Test fun projectLinksAreTheGitHubRepos() {
+        assertEquals("https://github.com/weslocke/ED-Outrider-Android", Project.APP_URL)
+        assertEquals("https://github.com/weslocke/ED-Outrider", Project.OUTRIDER_URL)
+    }
 }

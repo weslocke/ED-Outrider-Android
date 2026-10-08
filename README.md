@@ -22,7 +22,8 @@
 **[ED Outrider](https://github.com/weslocke/ED-Outrider)** is an Elite Dangerous exploration assistant that runs on
 your own machines: on the gaming PC, or on another computer on your network. It reads your game journals as you play and keeps a live page up to date with what an explorer keeps
 alt-tabbing for: who has been to the systems around you, what's in the one you're in, what your unsold data is worth,
-your bio samples and first discoveries, the Neutron Highway route, and spoken alerts.
+your bio samples and first discoveries, routes to plot and follow (the Neutron Highway, Exomastery, trade routes),
+the nearest place to dock, your cargo and fleet carrier, and spoken alerts.
 
 **This app is a client for it.** It puts Outrider's tablet layout on an Android tablet beside your HOTAS, so the game
 keeps the whole monitor. Outrider still does all the work, wherever it runs; the app is the cockpit display, and it adds what
@@ -40,9 +41,9 @@ the tablet sleeps, and listens for your voice.
 
 | | |
 |---|---|
-| 🖥️ **Cockpit display** | Outrider's tablet layout full screen, landscape, screen kept on: Now, Nearby, Here, Samples, Bookmarks, Search, Map, Highway, History, Log, Materials and My firsts. |
+| 🖥️ **Cockpit display** | Outrider's tablet layout full screen, landscape, screen kept on: Now, Nearby, Here, Samples, Bookmarks, Search, Map, Plot Route (with the [nearest place to dock](https://github.com/weslocke/ED-Outrider/blob/main/docs/guide/plot-route.md#-nearest-place-to-dock)), History, Log, Materials (your cargo and carrier) and My firsts. See Outrider's [tablet guide](https://github.com/weslocke/ED-Outrider/blob/main/docs/guide/tablet.md). |
 | 🕹️ **Ship controls** | A column of game buttons (landing gear, cargo scoop, lights, silent running, ...) that press your own key bindings in the game, lit from the game's own status. Changes with the vehicle: ship, SRV, fighter, on foot. *(Needs Outrider on the gaming PC, on Linux; an Outrider in server mode shows no game buttons.)* |
-| 🎙️ **"Hey Vespa"** | Say *"Hey / OK / Hello Vespa"*, then ask: *status report*, *fuel*, *unsold*, *next jump*, *what's left here*, *nearest unvisited*, *hush*. Outrider answers out loud in its own voice (or the tablet reads it, when Outrider can't). The wake word is yours to change. |
+| 🎙️ **"Hey Vespa"** | Say *"Hey / OK / Hello Vespa"*, then ask: *status report*, *fuel*, *unsold*, *next jump*, *what's left here*, *nearest unvisited*, *nearest station* (or *nearest carrier*, *nearest Vista*, *where can I dock*), *hush*. Outrider answers out loud in its own voice (or the tablet reads it, when Outrider can't). The wake word is yours to change. |
 | 🔊 **Alerts on the tablet** | With Outrider on a server and no browser open, the tablet itself speaks Outrider's alerts in Outrider's voice and plays its sounds; you pick which ones. |
 | 🎨 **Themes** | Elite (cockpit HUD), Babylon 5 (Earthforce, Narn, Minbari and Centauri), LCARS, Star Wars (Sith and Alliance) and a modern Dark mode, with their factions' emblems; picked in the page's settings, and the app's own screens follow. |
 | 🔒 **Signs in once** | When Outrider asks devices on the network for a password, the app signs in and stays signed in until it changes. |
@@ -93,7 +94,8 @@ on a server:
 **You need**
 
 - [ED Outrider](https://github.com/weslocke/ED-Outrider), a version with the tablet layout (2026.10.7 or newer for
-  everything below), running on a computer on your network (the gaming PC, or another machine such as a home server) and listening on the network:
+  everything below), running on a computer on your network (the gaming PC, or another machine such as a home server,
+  [in Docker](https://github.com/weslocke/ED-Outrider/blob/main/docs/guide/install.md#-running-as-a-server-docker)) and listening on the network:
   `[server] host = "0.0.0.0"` in `ed_outrider.toml` (not only `127.0.0.1`).
 - An Android tablet with Android 8 or newer on the same network, with an ARM processor (nearly all phones and tablets;
   Intel/x86 devices such as emulators and some Chromebooks aren't supported). It's built for an 11" landscape screen
@@ -148,7 +150,7 @@ has a `[server] password`, the app asks for it once.
 
 The tablet layout is Outrider's: tap the groups on the left, the pages under them, rows for details.
 The app's own settings are in Outrider's **Settings** (bottom right), under **Tablet app**: **Server…** (which
-Outrider to use), **Voice…** and **App menu…** (reload, ask, sign out). **Back** opens the same app menu from
+Outrider to use), **Voice…** and **App menu…** (reload, ask, sign out, about). **Back** opens the same app menu from
 anywhere, and is the way in when there's no Tablet app section (it needs app 1.2 and Outrider 2026.10.5 or newer).
 
 ### More than one Outrider
@@ -191,6 +193,8 @@ In **Settings → Tablet app → Voice…** (or **Back → Voice**):
 
 If Android has stopped asking for the microphone (it was refused), the screen says so and **Open Android settings**
 takes you to the app's permissions.
+
+What you can ask is Outrider's: see *Ask Outrider by voice* in its [voice guide](https://github.com/weslocke/ED-Outrider/blob/main/docs/guide/voice-and-alerts.md).
 
 The wake word is spotted on the tablet by a small open model ([sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)),
 so with loud game audio it can miss: raise the sensitivity, or tap Ask.

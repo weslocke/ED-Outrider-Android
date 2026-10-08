@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.0 (2026-10-08)
+
+- **About** in the app menu: the app's and Outrider's versions, the licence, and buttons that open the Android app's
+  and ED Outrider's GitHub pages in the browser.
+- The Voice screen's examples include Outrider 2026.10.17's "nearest station / carrier / Vista" and "where can I
+  dock" (Outrider answers them; nothing changes in the app).
+- (Checked: links on Outrider's page that open a new tab, like the GitHub links in its tablet Settings, open in the
+  browser too.)
+
 ## 1.2.0 (2026-10-04)
 
 - The app's settings are in Outrider's own Settings: a **Tablet app** section (Outrider 2026.10.5 or newer) opens the
