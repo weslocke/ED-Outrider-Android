@@ -135,8 +135,15 @@ object Versions {
     }
 }
 
-/** The two projects, for the About screen. */
+/** The two projects, for the About screen, and how Outrider recognises the app. */
 object Project {
     const val APP_URL = "https://github.com/weslocke/ED-Outrider-Android"
     const val OUTRIDER_URL = "https://github.com/weslocke/ED-Outrider"
+
+    /**
+     * The WebView's User-Agent: the system's, plus "OutriderApp/<version>". Outrider relies on the marker: a lost
+     * session answers 401 (not a redirect to its sign-in page), and the 📋 paste buttons read the game PC's clipboard
+     * only for the app and the PC's own browser. Keep it.
+     */
+    fun userAgent(base: String, appVersion: String) = "$base OutriderApp/$appVersion"
 }

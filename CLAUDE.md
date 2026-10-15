@@ -16,7 +16,9 @@ page <-> app bridge; the design history is in the author's (unpublished) Outride
   come back through `onMain()`, which drops them after `onDestroy`; `/api/ask` has its own executor.
 - `Flow.kt`: the pure decisions: what to show after `/api/version`, and what a page HTTP error means (with the
   401-loop guard).
-- `Contract.kt`: contract versions, `/api/version`, `/api/ask` and error parsing, version compatibility.
+- `Contract.kt`: contract versions, `/api/version`, `/api/ask` and error parsing, version compatibility, and
+  `Project.userAgent`: the WebView's User-Agent ends in `OutriderApp/<version>`, which Outrider relies on (401
+  instead of a sign-in redirect; the 📋 paste buttons). Never drop it.
 - `OutriderApi.kt`: the app's own HTTP calls (blocking; run off the main thread).
 - `ServerAddress.kt`: parsing the typed address, and `isSameOrigin`, the guard on everything loaded or called.
 - `Bridge.kt`: `window.OutriderApp` (a document-start script + an origin-restricted web message listener). Additions

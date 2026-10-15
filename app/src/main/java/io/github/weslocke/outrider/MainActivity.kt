@@ -403,7 +403,7 @@ class MainActivity : ComponentActivity() {
             // the page's "Play alerts here" speaks and sounds alerts with no tap first (only Outrider loads here)
             mediaPlaybackRequiresUserGesture = false
             javaScriptCanOpenWindowsAutomatically = false
-            userAgentString = "$userAgentString OutriderApp/$appVersion"
+            userAgentString = Project.userAgent(userAgentString, appVersion)
         }
         CookieManager.getInstance().setAcceptCookie(true)
         installBridge(w, address)
@@ -1126,7 +1126,8 @@ class MainActivity : ComponentActivity() {
             title = "Voice",
             body = "Say OK, Hey or Hello and the wake word, wait for LISTENING, then ask: a status report, fuel, " +
                 "unsold, the next jump, what's left here, the nearest unvisited system, the nearest station or carrier " +
-                "(\"nearest Vista\", \"where can I dock\"), hush or unhush. Outrider " +
+                "(\"nearest Vista\", \"where can I dock\"), how far today, this planet, FSD injections, or hush " +
+                "(\"hush for ten minutes\") and unhush. Outrider " +
                 "answers out loud in its own voice; when it can't (no PC window speaking), \"Speak answers here\" " +
                 "reads the answer on the tablet. With \"Play alerts here\" ticked in Outrider's Settings, the page " +
                 "speaks everything here in Outrider's voice instead, and this stays quiet.\n\nThe tablet listens for the wake word only while ED Outrider is on " +

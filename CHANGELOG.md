@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.1 (2026-10-15)
+
+- The Voice screen's examples add Outrider 2026.10.23's "how far today", "this planet", "FSD injections" and "hush
+  for ten minutes" (Outrider answers them; the app sends what you say as before).
+- README: Outrider's Settings → Voice commands… lists every built-in question.
+- The WebView's `OutriderApp/<version>` User-Agent marker is now a tested `Project.userAgent` (Outrider relies on it
+  for sign-in and for the 📋 paste buttons, which paste a system name copied on the game PC); README mentions both.
+
 ## 1.3.0 (2026-10-08)
 
 - **About** in the app menu: the app's and Outrider's versions, the licence, and buttons that open the Android app's

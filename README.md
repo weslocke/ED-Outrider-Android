@@ -43,7 +43,7 @@ the tablet sleeps, and listens for your voice.
 |---|---|
 | 🖥️ **Cockpit display** | Outrider's tablet layout full screen, landscape, screen kept on: Now, Nearby, Here, Samples, Bookmarks, Search, Map, Plot Route (with the [nearest place to dock](https://github.com/weslocke/ED-Outrider/blob/main/docs/guide/plot-route.md#-nearest-place-to-dock)), History, Log, Materials (your cargo and carrier) and My firsts. See Outrider's [tablet guide](https://github.com/weslocke/ED-Outrider/blob/main/docs/guide/tablet.md). |
 | 🕹️ **Ship controls** | A column of game buttons (landing gear, cargo scoop, lights, silent running, ...) that press your own key bindings in the game, lit from the game's own status. Changes with the vehicle: ship, SRV, fighter, on foot. *(Needs Outrider on the gaming PC, on Linux; an Outrider in server mode shows no game buttons.)* |
-| 🎙️ **"Hey Vespa"** | Say *"Hey / OK / Hello Vespa"*, then ask: *status report*, *fuel*, *unsold*, *next jump*, *what's left here*, *nearest unvisited*, *nearest station* (or *nearest carrier*, *nearest Vista*, *where can I dock*), *hush*. Outrider answers out loud in its own voice (or the tablet reads it, when Outrider can't). The wake word is yours to change. |
+| 🎙️ **"Hey Vespa"** | Say *"Hey / OK / Hello Vespa"*, then ask: *status report*, *fuel*, *unsold*, *next jump*, *what's left here*, *nearest unvisited*, *nearest station* (or *nearest carrier*, *nearest Vista*, *where can I dock*), *how far today*, *this planet*, *FSD injections*, *hush for ten minutes*. Outrider answers out loud in its own voice (or the tablet reads it, when Outrider can't). The wake word is yours to change. |
 | 🔊 **Alerts on the tablet** | With Outrider on a server and no browser open, the tablet itself speaks Outrider's alerts in Outrider's voice and plays its sounds; you pick which ones. |
 | 🎨 **Themes** | Elite (cockpit HUD), Babylon 5 (Earthforce, Narn, Minbari and Centauri), LCARS, Star Wars (Sith and Alliance) and a modern Dark mode, with their factions' emblems; picked in the page's settings, and the app's own screens follow. |
 | 🔒 **Signs in once** | When Outrider asks devices on the network for a password, the app signs in and stays signed in until it changes. |
@@ -153,6 +153,9 @@ The app's own settings are in Outrider's **Settings** (bottom right), under **Ta
 Outrider to use), **Voice…** and **App menu…** (reload, ask, sign out, about). **Back** opens the same app menu from
 anywhere, and is the way in when there's no Tablet app section (it needs app 1.2 and Outrider 2026.10.5 or newer).
 
+With Outrider on the game PC, **📋** beside a system-name box (Plot Route, Nearby's Focus/Lock, Search, the Nearest
+finder) pastes a system name you copied on the game PC, from EDSM or Spansh for example.
+
 ### More than one Outrider
 
 The app remembers the last four Outriders it connected to, labelled *game PC* or
@@ -194,7 +197,9 @@ In **Settings → Tablet app → Voice…** (or **Back → Voice**):
 If Android has stopped asking for the microphone (it was refused), the screen says so and **Open Android settings**
 takes you to the app's permissions.
 
-What you can ask is Outrider's: see *Ask Outrider by voice* in its [voice guide](https://github.com/weslocke/ED-Outrider/blob/main/docs/guide/voice-and-alerts.md).
+What you can ask is Outrider's: **Settings → Voice commands…** on the tablet lists every built-in question and the
+phrasings it understands (newer Outriders), and *Ask Outrider by voice* in its
+[voice guide](https://github.com/weslocke/ED-Outrider/blob/main/docs/guide/voice-and-alerts.md) explains them.
 
 The wake word is spotted on the tablet by a small open model ([sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)),
 so with loud game audio it can miss: raise the sensitivity, or tap Ask.
@@ -304,7 +309,7 @@ ignore fields they don't know.
 | `POST /api/auth/signout` | ends the session |
 | `POST /api/ask` | `{"text", "source": "vespa"}` → `{"answer", "spoken", "matched", "command"}` (Outrider speaks the answer; with `"spoken": false` the app can read it out) |
 | Errors | `{"error": "<words>", "code": "<code>"}`: `bad_password`, `rate_limited` (+ `Retry-After`), `signin_required`, `app_too_old` (426), ... |
-| Headers | the app sends `X-Outrider-App: <version>` and `Authorization: Bearer <token>` on its own calls |
+| Headers | the app sends `X-Outrider-App: <version>` and `Authorization: Bearer <token>` on its own calls; the WebView's User-Agent ends in `OutriderApp/<version>`, so Outrider knows the page is in the app (a lost session answers 401, and the 📋 paste buttons work) |
 
 The page sees `window.OutriderApp` (bridge version 1) and feature-detects each part, so it also works in a plain
 browser. The bridge exists only on the configured Outrider's pages.

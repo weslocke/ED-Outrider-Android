@@ -65,4 +65,10 @@ class ContractTest {
         assertEquals("https://github.com/weslocke/ED-Outrider-Android", Project.APP_URL)
         assertEquals("https://github.com/weslocke/ED-Outrider", Project.OUTRIDER_URL)
     }
+
+    @Test fun userAgentCarriesTheMarkerOutriderLooksFor() {
+        val ua = Project.userAgent("Mozilla/5.0 (Linux; Android 16) Chrome/153.0 Mobile Safari/537.36", "1.3.1")
+        assertTrue(ua, ua.startsWith("Mozilla/5.0 (Linux; Android 16)"))
+        assertTrue(ua, ua.endsWith(" OutriderApp/1.3.1"))
+    }
 }
