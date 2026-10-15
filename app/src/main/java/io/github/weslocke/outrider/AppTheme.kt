@@ -126,6 +126,36 @@ data class AppTheme(
             frame = Frame.CONSOLE,
             onSecondary = 0xFFF3E6C8.toInt(),
         )
+        /** Babylon 5's Vorlons: sea greens and gold on deep sea-green, a pale core, soft rounded cards. */
+        val VORLON = AppTheme(
+            name = "vorlon",
+            background = 0xFF06110D.toInt(),
+            primary = 0xFF5FB596.toInt(),
+            secondary = 0xFF2C6352.toInt(),
+            accent = 0xFFE6CF6A.toInt(),
+            text = 0xFFE2EFE6.toInt(),
+            onFill = 0xFF06110D.toInt(),
+            alert = 0xFFFF8C7A.toInt(),
+            cornerRadiusDp = 16f,
+            frame = Frame.CARD,
+            // the pale core on the deep-green secondary buttons, as the page's own buttons
+            onSecondary = 0xFFF4F1D0.toInt(),
+            surface = 0xFF0D1E18.toInt(),
+        )
+        /** Babylon 5's Shadows: violet and lilac on purple-black, light grey text, thorn-cut corners. */
+        val SHADOW = AppTheme(
+            name = "shadow",
+            background = 0xFF060409.toInt(),
+            primary = 0xFFA57BE6.toInt(),
+            secondary = 0xFF2B1745.toInt(),
+            accent = 0xFFA57BE6.toInt(),
+            text = 0xFFD6D3DD.toInt(),
+            onFill = 0xFF060409.toInt(),
+            alert = 0xFFFF6B7D.toInt(),
+            cornerRadiusDp = 0f,
+            frame = Frame.CHAMFER,
+            onSecondary = 0xFFD6D3DD.toInt(),
+        )
         /** Star Wars, Imperial / Sith: crimson on black, steel-white text, hard edges. */
         val SITH = AppTheme(
             name = "sith",
@@ -171,7 +201,7 @@ data class AppTheme(
             surface = 0xFF1C1F24.toInt(),
         )
 
-        private val ALL = listOf(LCARS, ELITE, BABYLON5, NARN, MINBARI, CENTAURI, SITH, ALLIANCE, DARK).associateBy { it.name }
+        private val ALL = listOf(LCARS, ELITE, BABYLON5, NARN, MINBARI, CENTAURI, VORLON, SHADOW, SITH, ALLIANCE, DARK).associateBy { it.name }
 
         fun named(name: String?): AppTheme = ALL[name?.lowercase()] ?: LCARS
 

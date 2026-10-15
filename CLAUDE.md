@@ -28,7 +28,7 @@ page <-> app bridge; the design history is in the author's (unpublished) Outride
 - `Servers.kt`: the saved Outriders (most recent first, at most 4, game PC or server), the per-Outrider tokens and
   cookies (JSON), and the 1.0.0 token migration.
 - `Ui.kt`, `FlowRow.kt`, `AppTheme.kt`: the app's own screens (button rows wrap), coloured and framed by the page's theme (lcars / elite / babylon5 /
-  narn / minbari / centauri / sith / alliance / dark, the same palettes as Outrider's `static/themes/`). `ContrastTest`
+  narn / minbari / centauri / vorlon / shadow / sith / alliance / dark, the same palettes as Outrider's `static/themes/`). `ContrastTest`
   holds every theme to WCAG contrast, the accent too, as a line colour (3:1). The emblems are the page's alone.
 - `Voice.kt`: one spoken question through Android's speech recognizer (on-device first, online fallback), and its
   pure helpers (`Speech`: error wording, the microphone permission's state, the answer line).

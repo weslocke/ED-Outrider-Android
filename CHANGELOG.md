@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.2 (2026-10-15)
+
+- The app's own screens (Server, Voice, the menu, About) follow Outrider 2026.10.23's two new themes, Babylon 5's
+  **Vorlon** (sea greens and gold, soft cards) and **Shadows** (violet on purple-black, cut corners), instead of
+  falling back to LCARS colours. Both pass the app's contrast checks.
+
 ## 1.3.1 (2026-10-15)
 
 - The Voice screen's examples add Outrider 2026.10.23's "how far today", "this planet", "FSD injections" and "hush

@@ -45,7 +45,7 @@ the tablet sleeps, and listens for your voice.
 | 🕹️ **Ship controls** | A column of game buttons (landing gear, cargo scoop, lights, silent running, ...) that press your own key bindings in the game, lit from the game's own status. Changes with the vehicle: ship, SRV, fighter, on foot. *(Needs Outrider on the gaming PC, on Linux; an Outrider in server mode shows no game buttons.)* |
 | 🎙️ **"Hey Vespa"** | Say *"Hey / OK / Hello Vespa"*, then ask: *status report*, *fuel*, *unsold*, *next jump*, *what's left here*, *nearest unvisited*, *nearest station* (or *nearest carrier*, *nearest Vista*, *where can I dock*), *how far today*, *this planet*, *FSD injections*, *hush for ten minutes*. Outrider answers out loud in its own voice (or the tablet reads it, when Outrider can't). The wake word is yours to change. |
 | 🔊 **Alerts on the tablet** | With Outrider on a server and no browser open, the tablet itself speaks Outrider's alerts in Outrider's voice and plays its sounds; you pick which ones. |
-| 🎨 **Themes** | Elite (cockpit HUD), Babylon 5 (Earthforce, Narn, Minbari and Centauri), LCARS, Star Wars (Sith and Alliance) and a modern Dark mode, with their factions' emblems; picked in the page's settings, and the app's own screens follow. |
+| 🎨 **Themes** | Elite (cockpit HUD), Babylon 5 (Earthforce, Narn, Minbari, Centauri, Vorlon and Shadows), LCARS, Star Wars (Sith and Alliance) and a modern Dark mode, with their factions' emblems; picked in the page's settings, and the app's own screens follow. |
 | 🔒 **Signs in once** | When Outrider asks devices on the network for a password, the app signs in and stays signed in until it changes. |
 | 🔁 **Reconnects** | Says plainly when Outrider can't be reached, and picks up again by itself when it's back. |
 | ⬇️ **Exports** | Outrider's CSV and JSON exports save to the tablet's Downloads. |
@@ -53,7 +53,8 @@ the tablet sleeps, and listens for your voice.
 
 ### Themes
 
-Nine themes, picked in Outrider's tablet **Settings**; the app's own screens follow. Each one but LCARS and Dark shows
+Eleven themes, picked in Outrider's tablet **Settings**; the app's own screens follow. (Vorlon and Shadows, Outrider
+2026.10.23's, aren't in the screenshots below yet.) Each one but LCARS and Dark shows
 its faction's emblem under the page list (**Show the theme's emblem** turns it off).
 
 **With the ship controls** (Outrider on the gaming PC):
@@ -320,7 +321,7 @@ browser. The bridge exists only on the configured Outrider's pages.
 | `appVersion()` | e.g. `"1.1.0"` |
 | `haptic(ms)` | a short vibration, up to 100 ms (nothing on tablets without a motor) |
 | `signInRequired()` | the session is gone: the app signs in again and reloads the page |
-| `setTheme(name)` | `"lcars"`, `"elite"`, `"babylon5"`, `"narn"`, `"minbari"`, `"centauri"`, `"sith"`, `"alliance"` or `"dark"`, so the app's own screens match the page (an unknown name: LCARS colours) |
+| `setTheme(name)` | `"lcars"`, `"elite"`, `"babylon5"`, `"narn"`, `"minbari"`, `"centauri"`, `"vorlon"`, `"shadow"`, `"sith"`, `"alliance"` or `"dark"`, so the app's own screens match the page (an unknown name: LCARS colours) |
 | `listen()` | listen for one spoken question, send it to `POST /api/ask` and show the answer (reading it out if Outrider didn't) |
 | `openServer()`, `openVoice()`, `openMenu()` | open the app's own Server, Voice or menu screen over the page, which stays loaded underneath (app 1.2+; for the page's Settings → Tablet app) |
 </details>
