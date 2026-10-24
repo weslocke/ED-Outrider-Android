@@ -109,6 +109,8 @@ class MainActivity : ComponentActivity() {
     private var tone: android.media.ToneGenerator? = null
     /** Android's text-to-speech, made on first use: answers Outrider couldn't speak on the PC. */
     private var tts: android.speech.tts.TextToSpeech? = null
+    /** The last answer the tablet read aloud itself: what "say that again" repeats when no PC window speaks. */
+    private var lastSaidHere: String? = null
     private var ttsReady = false
     private var resumed = false
     /** What to do once the microphone permission is answered. */
@@ -1126,7 +1128,8 @@ class MainActivity : ComponentActivity() {
             title = "Voice",
             body = "Say OK, Hey or Hello and the wake word, wait for LISTENING, then ask: a status report, fuel, " +
                 "unsold, the next jump, what's left here, the nearest unvisited system, the nearest station or carrier " +
-                "(\"nearest Vista\", \"where can I dock\"), how far today, this planet, FSD injections, or hush " +
+                "(\"nearest Vista\", \"where can I dock\"), how far today, where am I, this planet, FSD injections, " +
+                "bookmark this system, show the map, say that again, or hush " +
                 "(\"hush for ten minutes\") and unhush. Outrider " +
                 "answers out loud in its own voice; when it can't (no PC window speaking), \"Speak answers here\" " +
                 "reads the answer on the tablet. With \"Play alerts here\" ticked in Outrider's Settings, the page " +
@@ -1156,8 +1159,16 @@ class MainActivity : ComponentActivity() {
                 main.postDelayed({ voiceIdle() }, 1500)   // a moment for the PC to start answering aloud
                 when (result) {
                     is OutriderApi.Result.Ok -> {
-                        showOverlay(Speech.answerLine(result.value), long = true)
-                        if (!result.value.spoken && prefs.speakHere && result.value.answer.isNotBlank()) speakHere(result.value.answer)
+                        val reply = Speech.tabletReply(result.value, prefs.speakHere, lastSaidHere)
+                        // "show the map" switches the page underneath: close the app's own menus so it's seen (never
+                        // a sign-in or address screen)
+                        if (result.value.command == Speech.COMMAND_SHOW_PAGE &&
+                            (state == State.MENU || state == State.VOICE || state == State.ABOUT)) backToPage()
+                        showOverlay(reply.line, long = true)
+                        reply.say?.let {
+                            lastSaidHere = it
+                            speakHere(it)
+                        }
                     }
                     is OutriderApi.Result.Failed -> when (result.error.status) {
                         404 -> showOverlay("This Outrider can't answer questions yet: update Outrider", alert = true)

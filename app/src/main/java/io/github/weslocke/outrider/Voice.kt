@@ -133,6 +133,28 @@ object Speech {
         else -> Mic.ASKABLE
     }
 
+    /** Outrider's fixed commands the tablet treats specially (its other `command` values are only shown). */
+    const val COMMAND_AGAIN = "again"
+    const val COMMAND_SHOW_PAGE = "show_page"
+
+    /** What the tablet does with an answer: the overlay's [line], and what it reads aloud ([say]; null: nothing). */
+    data class TabletReply(val line: String, val say: String?)
+
+    /**
+     * The tablet's side of an answer. Outrider speaks its own answers when a window on the PC can ([AskAnswer.spoken]);
+     * otherwise the tablet reads them, if [speakHere] is on. Two commands differ:
+     * - "again" (say that again): with no PC window speaking, Outrider can only refuse, so the tablet repeats
+     *   [lastSaid], the last answer it read aloud itself, when there is one.
+     * - "show_page" (show the map, ...): the page switches by itself, which is answer enough; nothing is read.
+     */
+    fun tabletReply(a: AskAnswer, speakHere: Boolean, lastSaid: String?): TabletReply {
+        if (!a.spoken && a.command == COMMAND_AGAIN && lastSaid != null)
+            return TabletReply(lastSaid, if (speakHere) lastSaid else null)
+        val line = answerLine(a)
+        val say = a.answer.takeIf { !a.spoken && speakHere && it.isNotBlank() && a.command != COMMAND_SHOW_PAGE }
+        return TabletReply(line, say)
+    }
+
     /** What the overlay says once Outrider has answered. */
     fun answerLine(a: AskAnswer): String = when {
         a.answer.isNotBlank() -> a.answer

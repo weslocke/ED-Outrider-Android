@@ -5,7 +5,9 @@ Implements what the app relies on (PLAN-tablet-2026-10-02, "The API contract for
   GET  /api/version          open; {"outrider", "api", "min_app", "password", "signed_in", "game_pc"}
   POST /api/auth/signin      {"password"} -> {"ok", "token"} + Set-Cookie; 401 bad_password; 429 rate_limited
   POST /api/auth/signout     ends the session
-  POST /api/ask              {"text"} -> {"answer", "spoken", "matched", "command"} (a few fixed phrases)
+  POST /api/ask              {"text"} -> {"answer", "spoken", "matched", "command"} (a few fixed phrases, in
+                             Outrider's shapes: "again", "where_am_i", "bookmark_here", "bookmark_remove", and
+                             "show_page", which is never spoken)
   GET  /tablet               a test page exercising window.OutriderApp, sessions, downloads and links
 plus test helpers: GET /api/ping (needs a session), GET /api/export.csv (a download), POST /fake/expire (drops every
 session, as a password change would).
@@ -47,6 +49,7 @@ class State:
         self.args = args
         self.tokens = set()
         self.failures = {}  # address -> [timestamps]
+        self.last_answer = None  # what "say that again" repeats
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -205,6 +208,17 @@ class Handler(BaseHTTPRequestHandler):
             t = text.lower()
             for words, command, answer in ASK_PHRASES:
                 if any(w in t for w in words):
+                    if command == "again":
+                        # the window that speaks says its last line again; with none speaking, Outrider refuses
+                        if not spoken:
+                            answer = "No window is speaking aloud just now, so there is nothing to say again."
+                        else:
+                            answer = self.state.last_answer or "Nothing said yet."
+                    elif command == "show_page":
+                        # the tablet's page switches (in the real payload: copilot action "show", page); never spoken
+                        return self._json(200, {"answer": answer, "spoken": False, "matched": "fixed", "command": command})
+                    else:
+                        self.state.last_answer = answer
                     return self._json(200, {"answer": answer, "spoken": spoken, "matched": "fixed", "command": command})
             return self._json(200, {"answer": f"I don't know how to answer \"{text}\" yet.", "spoken": True,
                                     "matched": "none", "command": None} | {"spoken": spoken})
@@ -220,6 +234,13 @@ ASK_PHRASES = [
     (("fuel",), "fuel", "Fuel 160 of 160 tonnes, about 23 jumps."),
     (("unsold",), "unsold", "62.7 million credits unsold."),
     (("next jump", "next system"), "next_jump", "Next: Smojooe OR-N d6-121, a neutron star, 69 light years."),
+    (("say that again", "repeat that"), "again", ""),
+    (("where am i",), "where_am_i", "Smojooe AR-E b25-8, in the Inner Orion Spur, near planet ABC 1."),
+    (("remove the bookmark",), "bookmark_remove", "Bookmark of Smojooe AR-E b25-8 removed."),
+    (("bookmark this system",), "bookmark_here", "Smojooe AR-E b25-8 bookmarked."),
+    (("show the map", "open the map"), "show_page", "The Map."),
+    (("show bookmarks",), "show_page", "Bookmarks."),
+    (("show nearby", "back to nearby"), "show_page", "Nearby."),
 ]
 
 TEST_PAGE = r"""<!doctype html>
@@ -405,6 +426,22 @@ def selftest():
         s, ok, _ = call(base + "/api/auth/signin", {"password": "test"})
         s, a, _ = call(base + "/api/ask", {"text": "what is the weather"}, ok["token"])
         assert s == 200 and a["spoken"] is False and a["matched"] == "none", a
+        # no window speaking: "again" is Outrider's refusal (the app repeats its own last answer instead)
+        s, a, _ = call(base + "/api/ask", {"text": "say that again"}, ok["token"])
+        assert a["command"] == "again" and a["spoken"] is False and "nothing to say again" in a["answer"], a
+
+    def new_commands(base):
+        s, ok, _ = call(base + "/api/auth/signin", {"password": "test"})
+        ask = lambda text: call(base + "/api/ask", {"text": text, "source": "vespa"}, ok["token"])[1]
+        fuel = ask("how much fuel")
+        again = ask("say that again")
+        assert again["command"] == "again" and again["answer"] == fuel["answer"] and again["spoken"] is True, again
+        for text, command in (("where am I", "where_am_i"), ("bookmark this system", "bookmark_here"),
+                              ("remove the bookmark", "bookmark_remove")):
+            a = ask(text)
+            assert a["command"] == command and a["matched"] == "fixed" and a["answer"], (text, a)
+        page = ask("show the map")
+        assert page == {"answer": "The Map.", "spoken": False, "matched": "fixed", "command": "show_page"}, page
 
     def garbage(base):
         # a TLS hello (a browser trying https) must get a 400, not crash the logger, and the server must live on
@@ -427,6 +464,7 @@ def selftest():
     run({}, basic)
     run({"server_mode": True, "ask_429": True}, modes)
     run({"unspoken": True}, unspoken)
+    run({}, new_commands)
     run({}, garbage)
     run({"redirect": True}, redirect)
     print("selftest: ok")

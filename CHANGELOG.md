@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.3 (2026-10-24)
+
+- Outrider's new voice commands:
+  - **"say that again"** with no PC window speaking: the tablet repeats its own last answer instead of reading
+    Outrider's "nothing to say again";
+  - **"show the map"** (or bookmarks, Nearby, ...): the page switches, which is answer enough, so the tablet reads
+    nothing aloud, and the app's own menu or Voice screen closes so the page is seen;
+  - "where am I", "bookmark this system" and "remove the bookmark" are answered like any other question.
+  The decision is `Speech.tabletReply`, with tests.
+- fake_outrider.py answers the five new commands in Outrider's shapes ("again" refuses with `--unspoken`;
+  "show_page" is never spoken), with self-test checks.
+
 ## 1.3.2 (2026-10-15)
 
 - The app's own screens (Server, Voice, the menu, About) follow Outrider 2026.10.23's two new themes, Babylon 5's
